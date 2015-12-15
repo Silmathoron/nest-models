@@ -1,5 +1,5 @@
 AC_PREREQ(2.52)
-AC_INIT([nngt_module], [1.0], [nest_user@nest-initiative.org])
+AC_INIT([nngt_module], [0.1], [nest_user@nest-initiative.org])
 
 # Exporting source and build directories requires full path names.
 # Thus we have to expand.
@@ -35,7 +35,7 @@ AC_USE_SYSTEM_EXTENSIONS
 
 # nest-config
 NEST_CONFIG=`which nest-config`
-AC_ARG_WITH(nest,[  --with-nest=script	nest-config script including path],
+AC_ARG_WITH(nest,[  --with-nest=script  nest-config script including path],
 [
   if test "$withval" != yes; then
     NEST_CONFIG=$withval
@@ -49,7 +49,7 @@ AC_ARG_WITH(nest,[  --with-nest=script	nest-config script including path],
 # ---------------------------------------------------------------
 
 configure_bluegene=`$NEST_CONFIG --configure-bluegene`
-AM_CONDITIONAL(BUILD_DYNAMIC_USER_MODULES, test x$configure_bluegene = xno) 
+AM_CONDITIONAL(BUILD_DYNAMIC_USER_MODULES, test x$configure_bluegene = xno)
 
 if test x$configure_bluegene = xyes ; then
   AC_DISABLE_SHARED
@@ -113,8 +113,8 @@ CXXFLAGS=
 AC_PROG_LD
 AC_PROG_INSTALL
 
-AC_LIBLTDL_CONVENIENCE	   ## put libltdl into a convenience library
-AC_PROG_LIBTOOL		   ## use libtool
+AC_LIBLTDL_CONVENIENCE     ## put libltdl into a convenience library
+AC_PROG_LIBTOOL      ## use libtool
 AC_CONFIG_SUBDIRS(libltdl) ## also configure subdir containing libltdl
 
 

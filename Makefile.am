@@ -20,42 +20,43 @@
 # 4. The libnngt_module* stuff creates a library against which NEST can be
 #    linked.
 
-libdir= @libdir@/nest
+libdir = @libdir@/nest
 
 # We need to install the module header for static linking on BlueGene
 include_HEADERS = nngt_module.h
 
 # All other source files
-source_files=  nngt_module.cpp \
-               gp_aeif/gp_aeif_cond_alpha.cpp gp_aeif/gp_aeif_cond_alpha.h
+source_files =  nngt_module.cpp
+include gp_aeif/Makefile.am
 
+# Build details
 if BUILD_DYNAMIC_USER_MODULES
-  lib_LTLIBRARIES= libnngt_module.la nngt_module.la
-  nngt_module_la_CXXFLAGS= @AM_CXXFLAGS@
-  nngt_module_la_SOURCES=  $(source_files)
-  nngt_module_la_LDFLAGS=  -module
+  lib_LTLIBRARIES         = libnngt_module.la nngt_module.la
+  nngt_module_la_CXXFLAGS = @AM_CXXFLAGS@
+  nngt_module_la_SOURCES  = $(source_files)
+  nngt_module_la_LDFLAGS  = -module
 else
-  lib_LTLIBRARIES= libnngt_module.la
+  lib_LTLIBRARIES         = libnngt_module.la
 endif
 
-libnngt_module_la_CXXFLAGS= @AM_CXXFLAGS@ -DLINKED_MODULE
-libnngt_module_la_SOURCES=  $(source_files)
+libnngt_module_la_CXXFLAGS = @AM_CXXFLAGS@ -DLINKED_MODULE
+libnngt_module_la_SOURCES  = $(source_files)
 
-MAKEFLAGS= @MAKE_FLAGS@
+MAKEFLAGS = @MAKE_FLAGS@
 
-AM_CPPFLAGS= @NEST_CPPFLAGS@ \
-             @INCLTDL@
+AM_CPPFLAGS = @NEST_CPPFLAGS@ \
+              @INCLTDL@
 
 .PHONY: install-slidoc
 
-pkgdatadir=@datadir@/nest
+pkgdatadir = @datadir@/nest
 
-nobase_pkgdata_DATA=\
+nobase_pkgdata_DATA = \
 	sli/nngt_module-init.sli
 
 install-slidoc:
-	NESTRCFILENAME=/dev/null $(DESTDIR)$(NEST_PREFIX)/bin/sli --userargs="@HELPDIRS@" $(NEST_PREFIX)/share/nest/sli/install-help.sli
+	NESTRCFILENAME = /dev/null $(DESTDIR)$(NEST_PREFIX)/bin/sli --userargs="@HELPDIRS@" $(NEST_PREFIX)/share/nest/sli/install-help.sli
 
 install-data-hook: install-exec install-slidoc
 
-EXTRA_DIST= sli
+EXTRA_DIST = sli
