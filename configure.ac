@@ -16,7 +16,7 @@ PKGBUILDDIR=`pwd`
 # moritz, 06-26-06
 AC_CONFIG_AUX_DIR(.)
 
-AM_INIT_AUTOMAKE([tar-ustar])
+AM_INIT_AUTOMAKE([tar-ustar subdir-objects])
 
 # obtain host system type; HEP 2004-12-20
 AC_CANONICAL_HOST

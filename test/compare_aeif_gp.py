@@ -26,7 +26,7 @@ nest.Install("nngt_module")
 parser = argparse.ArgumentParser(description="Script to compare the grid-precise and usual models.", usage='%(prog)s [options]')
 parser.add_argument("-i", "--indivdual", action="store", default=True,
           help="Compare the individual-neuron dynamics.")
-parser.add_argument("-n", "--network", action="store", default=True,
+parser.add_argument("-nn", "--no_network", action="store_true",
           help="Compare network dynamics.")
 group = parser.add_mutually_exclusive_group()
 group.add_argument("-nt", "--notime", action="store_true",
@@ -108,7 +108,7 @@ if args.indivdual:
 #------------------------
 #
 
-if args.network:
+if not args.no_network:
     # time the simulations for each neural model and network size
     sim_time = 1000.
     lst_network_sizes = [args.size] if args.notime else np.arange(1000, 12000, 5000)
@@ -151,4 +151,5 @@ if args.network:
         ax2.scatter(lst_network_sizes, lst_spikes[i], c=cm.hot(i/float(num_neurons)), label=model)
         ax1.legend(loc=2)
         ax2.legend(loc=2)
-    plt.show()
+        
+plt.show()

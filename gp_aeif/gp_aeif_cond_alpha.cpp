@@ -366,22 +366,44 @@ mynest::gp_aeif_cond_alpha::calibrate()
  * Update and spike handling functions
  * ---------------------------------------------------------------- */
 
+double
+mynest::gp_aeif_cond_alpha::interpolate( double& t, double t_old )
+{
+  // find the exact time when the threshold was crossed
+  double dt_crossing = ( P_.V_peak_ - S_.y_old_[ State_::V_M ] ) * ( t - t_old ) / ( S_.y_[ State_::V_M ] - S_.y_old_[ State_::V_M ] );
+  double t_crossing = t_old + dt_crossing;
+  t = t_crossing;
+  
+  // reset V_m and set the other variables correctly
+  S_.y_[ State_::V_M ] = P_.V_reset_;
+  for ( int i=1; i < State_::STATE_VEC_SIZE; ++i )
+  {
+    S_.y_[i] = S_.y_old_[i] + ( S_.y_[i] - S_.y_old_[i] ) / ( t - t_old ) * dt_crossing;
+  }
+  S_.y_[ State_::W ] = S_.y_[ State_::W ] + P_.b; // spike-driven adaptation
+  S_.r_ = V_.RefractoryCounts_;
+  S_.r_offset_ = ( S_.r_ == 0) ? 0. : V_.RefractoryOffset_ - (B_.step_ - t);
+  if ( S_.r_offset_ < 0. )
+  {
+    --S_.r_;
+    S_.r_offset_ = B_.step_ + S_.r_offset_;
+  }
+  return t_crossing;
+}
+
 void
 mynest::gp_aeif_cond_alpha::update( const Time& origin, const nest::long_t from, const nest::long_t to )
 {
   assert( to >= 0 && ( delay ) from < Scheduler::get_min_delay() );
   assert( from < to );
   assert( State_::V_M == 0 );
-
-  double V_m_old;
-  double w_old;
-  double t_old;
-  double t_crossing;
-  double dt_crossing;
+  
+  double t, t_crossing, t_old;
 
   for ( long_t lag = from; lag < to; ++lag )
   {
-    double t = 0.;
+    t = 0.;
+    t_crossing = 0.;
 
     if ( S_.r_ > 0 )
       --S_.r_;
@@ -400,8 +422,7 @@ mynest::gp_aeif_cond_alpha::update( const Time& origin, const nest::long_t from,
     while ( t < B_.step_ )
     {
       // store the previous values of V_m, w, and t
-      V_m_old = S_.y_[ State_::V_M ];
-      w_old = S_.y_[ State_::W ];
+      std::copy(S_.y_, S_.y_ + sizeof(S_.y_)/sizeof(S_.y_[0]), S_.y_old_);
       t_old = t;
 
       // propagate the ODE
@@ -427,22 +448,8 @@ mynest::gp_aeif_cond_alpha::update( const Time& origin, const nest::long_t from,
         S_.y_[ State_::V_M ] = P_.V_reset_; // only V_m is frozen
       else if ( S_.y_[ State_::V_M ] >= P_.V_peak_ )
       {
-        // find the exact time when the threshold was crossed
-        dt_crossing = ( P_.V_peak_ - V_m_old ) * ( t - t_old ) / ( S_.y_[ State_::V_M ] - V_m_old );
-        t_crossing = t_old + dt_crossing;
-        t = t_crossing;
-
-        // reset
-        S_.y_[ State_::V_M ] = P_.V_reset_;
-        S_.y_[ State_::W ] = w_old + P_.b; // spike-driven adaptation
-        S_.r_ = V_.RefractoryCounts_;
-        S_.r_offset_ = ( S_.r_ == 0) ? 0. : V_.RefractoryOffset_ - (B_.step_ - t);
-        if ( S_.r_offset_ < 0. )
-        {
-          --S_.r_;
-          S_.r_offset_ = B_.step_ + S_.r_offset_;
-        }
-
+        t_crossing = interpolate( t, t_old);
+        
         set_spiketime( Time::step( origin.get_steps() + lag + 1 ) );
         SpikeEvent se;
         network()->send( *this, se, lag );

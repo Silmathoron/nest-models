@@ -28,6 +28,7 @@ include_HEADERS = nngt_module.h
 # All other source files
 source_files =  nngt_module.cpp
 include gp_aeif/Makefile.am
+#~ include ps_iaf/Makefile.am
 
 # Build details
 if BUILD_DYNAMIC_USER_MODULES
@@ -54,7 +55,7 @@ pkgdatadir = @datadir@/nest
 nobase_pkgdata_DATA = \
 	sli/nngt_module-init.sli
 
-install-slidoc:
+install-slidoc:\
 	NESTRCFILENAME = /dev/null $(DESTDIR)$(NEST_PREFIX)/bin/sli --userargs="@HELPDIRS@" $(NEST_PREFIX)/share/nest/sli/install-help.sli
 
 install-data-hook: install-exec install-slidoc
