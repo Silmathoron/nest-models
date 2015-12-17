@@ -234,7 +234,6 @@ class aeif_cond_alpha_mod : public nest::Archiving_Node
          };
 
          nest::double_t y_[ STATE_VEC_SIZE ]; //!< neuron state, must be C-array for GSL solver
-         nest::double_t y_old_[ STATE_VEC_SIZE ]; //!< old neuron state, must be C-array for GSL solver
          nest::int_t r_;                      //!< number of refractory steps remaining
 
          State_( const Parameters_& ); //!< Default initialization
@@ -320,13 +319,6 @@ class aeif_cond_alpha_mod : public nest::Archiving_Node
       get_y_elem_() const
       {
          return S_.y_[ elem ];
-      }
-      //! Read out the old state
-      template < State_::StateVecElems elem >
-      nest::double_t
-      get_y_old_elem_() const
-      {
-         return S_.y_old_[ elem ];
       }
       /** @} */
 

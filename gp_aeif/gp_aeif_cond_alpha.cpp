@@ -373,14 +373,14 @@ mynest::gp_aeif_cond_alpha::interpolate( double& t, double t_old )
   double dt_crossing = ( P_.V_peak_ - S_.y_old_[ State_::V_M ] ) * ( t - t_old ) / ( S_.y_[ State_::V_M ] - S_.y_old_[ State_::V_M ] );
   double t_crossing = t_old + dt_crossing;
   t = t_crossing;
-  
+
   // reset V_m and set the other variables correctly
   S_.y_[ State_::V_M ] = P_.V_reset_;
   for ( int i=1; i < State_::STATE_VEC_SIZE; ++i )
   {
     S_.y_[i] = S_.y_old_[i] + ( S_.y_[i] - S_.y_old_[i] ) / ( t - t_old ) * dt_crossing;
   }
-  S_.y_[ State_::W ] = S_.y_[ State_::W ] + P_.b; // spike-driven adaptation
+  S_.y_[ State_::W ] += P_.b; // spike-driven adaptation
   S_.r_ = V_.RefractoryCounts_;
   S_.r_offset_ = ( S_.r_ == 0) ? 0. : V_.RefractoryOffset_ - (B_.step_ - t);
   if ( S_.r_offset_ < 0. )
@@ -397,7 +397,7 @@ mynest::gp_aeif_cond_alpha::update( const Time& origin, const nest::long_t from,
   assert( to >= 0 && ( delay ) from < Scheduler::get_min_delay() );
   assert( from < to );
   assert( State_::V_M == 0 );
-  
+
   double t, t_crossing, t_old;
 
   for ( long_t lag = from; lag < to; ++lag )
@@ -449,7 +449,7 @@ mynest::gp_aeif_cond_alpha::update( const Time& origin, const nest::long_t from,
       else if ( S_.y_[ State_::V_M ] >= P_.V_peak_ )
       {
         t_crossing = interpolate( t, t_old);
-        
+
         set_spiketime( Time::step( origin.get_steps() + lag + 1 ) );
         SpikeEvent se;
         network()->send( *this, se, lag );

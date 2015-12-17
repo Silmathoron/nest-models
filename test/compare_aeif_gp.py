@@ -36,6 +36,7 @@ group.add_argument("-s", "--size", action="store", default=5000,
 
 ## parse
 args = parser.parse_args()
+args.no_network = True
 
 
 #-----------------------------------------------------------------------------#
@@ -68,7 +69,7 @@ if args.indivdual:
     }
 
     # models
-    models = [ "iaf_cond_alpha", "ps_iaf_cond_alpha" ]
+    models = [ "aeif_cond_alpha", "gp_aeif_cond_alpha", "ps_aeif_cond_alpha" ]
     lst_neurons = [ nest.Create(model,params=di_param) for model in models ]
     num_neurons = len(lst_neurons)
 
@@ -151,5 +152,5 @@ if not args.no_network:
         ax2.scatter(lst_network_sizes, lst_spikes[i], c=cm.hot(i/float(num_neurons)), label=model)
         ax1.legend(loc=2)
         ax2.legend(loc=2)
-        
+
 plt.show()

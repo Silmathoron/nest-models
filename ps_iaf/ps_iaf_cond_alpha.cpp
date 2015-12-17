@@ -274,7 +274,7 @@ void
 mynest::ps_iaf_cond_alpha::init_buffers_()
 {
   B_.spike_events_.resize();
-  B_.spike_events_.clear(); // includes resize
+  B_.spike_events_.clear();
   B_.currents_.clear();  // includes resize
   Archiving_Node::clear_history();
 
@@ -332,7 +332,7 @@ mynest::ps_iaf_cond_alpha::interpolate_( double& t, double t_old )
   double dt_crossing = ( P_.V_th - S_.y_old_[ State_::V_M ] ) * ( t - t_old ) / ( S_.y_[ State_::V_M ] - S_.y_old_[ State_::V_M ] );
   double t_crossing = t_old + dt_crossing;
   t = t_crossing;
-  
+
   // reset V_m and set the other variables correctly
   S_.y_[ State_::V_M ] = P_.V_reset_;
   for ( int i=1; i < State_::STATE_VEC_SIZE; ++i )
@@ -349,12 +349,6 @@ mynest::ps_iaf_cond_alpha::interpolate_( double& t, double t_old )
   return t_crossing;
 }
 
-double
-mynest::ps_iaf_cond_alpha::get_next_spike_()
-{
-  
-}
-
 void
 mynest::ps_iaf_cond_alpha::update( const Time& origin, const nest::long_t from, const nest::long_t to )
 {
@@ -363,11 +357,11 @@ mynest::ps_iaf_cond_alpha::update( const Time& origin, const nest::long_t from, 
   assert( State_::V_M == 0 );
 
   double t, t_crossing, t_old, t_next_spike, spike_effect_in, spike_effect_ex;
-  
+
   // at start of slice, tell input queue to prepare for delivery
   if ( from == 0 )
     B_.spike_events_.prepare_delivery();
-    
+
   /* Neurons may have been initialized to superthreshold potentials.
      We need to check for this here and issue spikes at the beginning of
      the interval.
@@ -385,7 +379,8 @@ mynest::ps_iaf_cond_alpha::update( const Time& origin, const nest::long_t from, 
   {
     // time at start of update step
     const nest::long_t T = origin.get_steps() + lag;
-    double t = 0.;
+    t = 0.;
+    t_crossing;
     t_next_spike = 0.;
 
     if ( S_.r_ > 0 )
@@ -401,7 +396,7 @@ mynest::ps_iaf_cond_alpha::update( const Time& origin, const nest::long_t from, 
     // note that (t+IntegrationStep > step) leads to integration over
     // (t, step] and afterwards setting t to step, but it does not
     // enforce setting IntegrationStep to step-t
-    
+
     while ( t < B_.step_ )
     {
       // store the previous values of V_m, g_exc, g_inh, and t
@@ -428,7 +423,7 @@ mynest::ps_iaf_cond_alpha::update( const Time& origin, const nest::long_t from, 
 
       // spikes are handled inside the while-loop
       // due to spike-driven adaptation
-      if ( S_.r_ > 0 || t < S_.r_offset_)
+      if ( S_.r_ > 0 || t < S_.r_offset_ )
         S_.y_[ State_::V_M ] = P_.V_reset_; // only V_m is frozen
       else if ( S_.y_[ State_::V_M ] >= P_.V_th )
       {
@@ -440,15 +435,14 @@ mynest::ps_iaf_cond_alpha::update( const Time& origin, const nest::long_t from, 
         se.set_offset( B_.step_ - t_crossing );
         network()->send( *this, se, lag );
       }
-      
+
+      // deduce the elapsed time since the spike from the refractory offset if necessary
+      if ( S_.r_ == 0 )
+        S_.r_offset_ = std::max( 0., S_.r_offset_ + t_crossing - t );
+
       S_.y_[ State_::DG_EXC ] += spike_effect_ex * V_.g0_ex_;
       S_.y_[ State_::DG_INH ] += spike_effect_in * V_.g0_in_;
-      
     }
-    
-    // deduce the elapsed time since the spike from the refractory offset if necessary
-    if ( S_.r_ == 0 )
-      S_.r_offset_ = std::max( 0., S_.r_offset_ + t_crossing - t );
 
     // set new input current
     B_.I_stim_ = B_.currents_.get_value( lag );
@@ -462,7 +456,7 @@ void
 mynest::ps_iaf_cond_alpha::handle( SpikeEvent& e )
 {
   assert( e.get_delay() > 0 );
-  
+
   const long_t Tdeliver = e.get_stamp().get_steps() + e.get_delay() - 1;
   B_.spike_events_.add_spike( e.get_rel_delivery_steps( network()->get_slice_origin() ),
     Tdeliver,

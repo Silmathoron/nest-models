@@ -40,7 +40,7 @@ is clamped to the resting potential, while synaptic currents evolve normally.
 
 The dynamics of the neuron are defined by
 
-   C_m dV/dt  = I_e - g_syn_exc(t) x (V-E_exc) - g_syn_inh(t) x (V-E_inh) 
+   C_m dV/dt  = I_e - g_syn_exc(t) x (V-E_exc) - g_syn_inh(t) x (V-E_inh)
 
    g_syn_exc(t)   = Sum_{t_{j,k,exc} < t} w_j x (t-t_{j,k}) x e/tau_syn_exc x e^{-(t-t_{j,k})/tau_syn_exc}
    g_syn_inh(t)   = Sum_{t_{j,k,inh} < t} w_j x (t-t_{j,k}) x e/tau_syn_inh x e^{-(t-t_{j,k})/tau_syn_inh}
@@ -147,9 +147,6 @@ class ps_iaf_cond_alpha : public nest::Archiving_Node
 
       //! Find the precise time of network crossing
       double interpolate_( double&, double );
-
-      //! Find the precise time of network crossing
-      double get_next_spike_();
 
       // The next two classes need to be friends to access the State_ class/member
       friend class nest::RecordablesMap< ps_iaf_cond_alpha >;
