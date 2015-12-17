@@ -38,6 +38,8 @@
 // include headers with your own stuff
 #include "nngt_module.h"
 #include "gp_aeif/gp_aeif_cond_alpha.h"
+#include "aeif/aeif_cond_alpha_mod.h"
+#include "ps_iaf/ps_iaf_cond_alpha.h"
 
 // -- Interface to dynamic module loader ---------------------------------------
 
@@ -92,5 +94,7 @@ mynest::NngtModule::init( SLIInterpreter* i )
    The first argument is always a reference to the network.
   */
   nest::register_model< gp_aeif_cond_alpha >( nest::NestModule::get_network(), "gp_aeif_cond_alpha" );
+  nest::register_model< aeif_cond_alpha_mod >( nest::NestModule::get_network(), "aeif_cond_alpha_mod" );
+  nest::register_model< ps_iaf_cond_alpha >( nest::NestModule::get_network(), "ps_iaf_cond_alpha" );
 
 } // NngtModule::init()

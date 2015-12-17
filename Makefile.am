@@ -28,7 +28,9 @@ include_HEADERS = nngt_module.h
 # All other source files
 source_files =  nngt_module.cpp
 include gp_aeif/Makefile.am
-#~ include ps_iaf/Makefile.am
+include aeif/Makefile.am
+include ps_iaf/Makefile.am
+include slice_buffer/Makefile.am
 
 # Build details
 if BUILD_DYNAMIC_USER_MODULES

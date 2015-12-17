@@ -53,33 +53,33 @@ if args.indivdual:
 
     # create AdExp neurons
     di_param = {
-        'V_reset': -48.,
-        'V_peak': 0.0,
+        'V_reset': -65.,
         'V_th': -50.,
         'I_e': 0.0,
         'g_L': 12.,
-        'tau_w': 130.,
         'E_L': -60.,
-        'Delta_T': 2.,
-        'a': -11.,
-        'b': 30.,
         'C_m': 100.,
         'V_m': -60.
     }
 
     # models
     models = [ "iaf_cond_alpha", "ps_iaf_cond_alpha" ]
+    #~ models = [ "iaf_cond_alpha" ]
     lst_neurons = [ nest.Create(model,params=di_param) for model in models ]
     num_neurons = len(lst_neurons)
 
 
     step_gen = nest.Create("step_current_generator",1,{"amplitude_times": [50.,1500.], "amplitude_values":[d_step_current,0.]})
+    pg = nest.Create("poisson_generator", params={"rate": 100.})
+    pn = nest.Create("parrot_neuron")
+    nest.Connect(pg,pn)
     multimeter = nest.Create("multimeter",num_neurons)
-    nest.SetStatus(multimeter, {"withtime":True, "interval":r_resolution, "record_from":["V_m","w"]})
+    nest.SetStatus(multimeter, {"withtime":True, "interval":r_resolution, "record_from":["V_m","g_ex"]})
 
     for i,neuron in enumerate(lst_neurons):
         nest.Connect(step_gen,neuron)
         nest.Connect(multimeter[i],neuron[0])
+        nest.Connect(pn,(neuron[0],))
 
     nest.Simulate(1600.0)
 
@@ -92,13 +92,13 @@ if args.indivdual:
     for i in range(num_neurons):
         dmm = nest.GetStatus(multimeter)[i]
         da_voltage = dmm["events"]["V_m"]
-        da_adapt = dmm["events"]["w"]
+        da_adapt = dmm["events"]["g_ex"]
         da_time = dmm["events"]["times"]
         ax1.plot(da_time,da_voltage,c=cm.hot(i/float(num_neurons)), label=models[i])
         ax1.set_ylabel('Voltage (mV)')
         ax2.plot(da_time,da_adapt,c=cm.hot(i/float(num_neurons)), label=models[i])
         ax2.set_xlabel('Time (ms)')
-        ax2.set_ylabel('Current (pA)')
+        ax2.set_ylabel('Conductance (nS)')
 
     plt.legend(loc=4)
 
@@ -108,7 +108,8 @@ if args.indivdual:
 #------------------------
 #
 
-if not args.no_network:
+#~ if not args.no_network:
+if False:
     # time the simulations for each neural model and network size
     sim_time = 1000.
     lst_network_sizes = [args.size] if args.notime else np.arange(1000, 6000, 1000)
