@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #-*- coding:utf-8 -*-
 
-""" Script to test the precise iaf behaviours """
+""" Script to test the precise aeif behaviours """
 
 import argparse
 import time
