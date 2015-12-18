@@ -18,7 +18,7 @@ Download and go to the right folder:
 `git clone https://github.com/Silmathoron/nest-models.git && cd nest-models`
 
 Then make the install:
-        sh bootstrap.sh
-        mkdir .build && cd .build
-        ../configure --with-nest=/your/path/to/nest-install-folder/bin/nest-config
-        make && make install
+* `sh bootstrap.sh`
+* `mkdir .build && cd .build`
+* `../configure --with-nest=/your/path/to/nest-install-folder/bin/nest-config`
+* `make && make install`
