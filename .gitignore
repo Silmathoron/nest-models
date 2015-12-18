@@ -1,0 +1,15 @@
+.build
+libltdl
+
+compile
+configure
+depcomp
+install-sh
+ltmain.sh
+missing
+*.sub
+*.guess
+*.cache
+*.m4
+*.in
+*.pyc
