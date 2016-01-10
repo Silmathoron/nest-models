@@ -145,7 +145,10 @@ class gp_aeif_cond_exp : public nest::Archiving_Node
       void update( const nest::Time&, const nest::long_t, const nest::long_t );
 
       //! Take neuron through given time interval
-      double interpolate( double&, double );
+      void interpolate_( double&, double );
+      
+      //! Send spike and set refractoriness
+      void spiking_( const nest::long_t, const double );
 
       // The next two classes need to be friends to access the State_ class/member
       friend class nest::RecordablesMap< gp_aeif_cond_exp >;
@@ -282,6 +285,7 @@ class gp_aeif_cond_exp : public nest::Archiving_Node
          // it is safe to place both here.
          nest::double_t step_;          //!< step size in ms
          double IntegrationStep_; //!< current integration time step, updated by GSL
+         double uncertainty; //!< acceptable error on event timing
 
          /**
          * Input current injected by CurrentEvent.

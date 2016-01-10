@@ -1,15 +1,16 @@
 .build
 libltdl
 
-compile
+*.in
+*.m4
+*.guess
+*.sub
+*.cache
+*.pyc
+
 configure
 depcomp
 install-sh
-ltmain.sh
 missing
-*.sub
-*.guess
-*.cache
-*.m4
-*.in
-*.pyc
+compile
+ltmain.sh

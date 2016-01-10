@@ -121,6 +121,12 @@ class ps_aeif_cond_alpha : public nest::Archiving_Node
       void handle( nest::SpikeEvent& );         //! accept spikes
       void handle( nest::CurrentEvent& );       //! accept input current
       void handle( nest::DataLoggingRequest& ); //! allow recording with multimeter
+      
+      bool
+      is_off_grid() const
+      {
+        return true;
+      } // uses off_grid events
 
       nest::port handles_test_event( nest::SpikeEvent&, nest::port );
       nest::port handles_test_event( nest::CurrentEvent&, nest::port );
@@ -146,7 +152,10 @@ class ps_aeif_cond_alpha : public nest::Archiving_Node
       void update( const nest::Time&, const nest::long_t, const nest::long_t );
 
       //! Find the precise time of network crossing
-      double interpolate_( double&, double );
+      void interpolate_( double&, double );
+      
+      //! Send spike and set refractoriness
+      void spiking_( const nest::long_t, const nest::long_t, const double );
 
       // The next two classes need to be friends to access the State_ class/member
       friend class nest::RecordablesMap< ps_aeif_cond_alpha >;
@@ -270,7 +279,7 @@ class ps_aeif_cond_alpha : public nest::Archiving_Node
          nest::UniversalDataLogger< ps_aeif_cond_alpha > logger_;
 
          /** buffers and sums up incoming spikes/currents */
-         nest::SliceRingBuffer spike_events_;
+         SliceRingBuffer events_;
          nest::RingBuffer currents_;
 
          /** GSL ODE stuff */
@@ -285,6 +294,7 @@ class ps_aeif_cond_alpha : public nest::Archiving_Node
          // it is safe to place both here.
          nest::double_t step_;          //!< step size in ms
          double IntegrationStep_; //!< current integration time step, updated by GSL
+         double uncertainty; //!< acceptable error on event timing
 
          /**
          * Input current injected by CurrentEvent.

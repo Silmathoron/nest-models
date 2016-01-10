@@ -316,6 +316,7 @@ mynest::gp_aeif_cond_exp::init_buffers_()
 
   // We must integrate this model with high-precision to obtain decent results
   B_.IntegrationStep_ = std::min( 0.01, B_.step_ );
+  B_.uncertainty = 0.0001 * B_.IntegrationStep_;
 
   if ( B_.s_ == 0 )
     B_.s_ = gsl_odeiv_step_alloc( gsl_odeiv_step_rkf45, State_::STATE_VEC_SIZE );
@@ -355,13 +356,11 @@ mynest::gp_aeif_cond_exp::calibrate()
  * Update and spike handling functions
  * ---------------------------------------------------------------- */
 
-double
-mynest::gp_aeif_cond_exp::interpolate( double& t, double t_old )
+void
+mynest::gp_aeif_cond_exp::interpolate_( double& t, double t_old )
 {
   // find the exact time when the threshold was crossed
   double dt_crossing = ( P_.V_peak_ - S_.y_old_[ State_::V_M ] ) * ( t - t_old ) / ( S_.y_[ State_::V_M ] - S_.y_old_[ State_::V_M ] );
-  double t_crossing = t_old + dt_crossing;
-  t = t_crossing;
 
   // reset V_m and set the other variables correctly
   S_.y_[ State_::V_M ] = P_.V_reset_;
@@ -370,14 +369,33 @@ mynest::gp_aeif_cond_exp::interpolate( double& t, double t_old )
     S_.y_[i] = S_.y_old_[i] + ( S_.y_[i] - S_.y_old_[i] ) / ( t - t_old ) * dt_crossing;
   }
   S_.y_[ State_::W ] += P_.b; // spike-driven adaptation
-  S_.r_ = V_.RefractoryCounts_;
-  S_.r_offset_ = ( S_.r_ == 0) ? 0. : V_.RefractoryOffset_ - (B_.step_ - t);
-  if ( S_.r_offset_ < 0. )
+
+  t = t_old + dt_crossing;
+}
+
+void
+mynest::gp_aeif_cond_exp::spiking_( const long_t lag, const double t )
+{
+  // spike event
+  SpikeEvent se;
+  network()->send( *this, se, lag );
+
+  // refractoriness
+  if ( P_.t_ref_ > 0. )
   {
-    --S_.r_;
-    S_.r_offset_ = B_.step_ + S_.r_offset_;
+    S_.r_ = V_.RefractoryCounts_;
+    S_.r_offset_ = V_.RefractoryOffset_ - (B_.step_ - t);
+    if ( S_.r_offset_ < 0. )
+    {
+      if ( S_.r_ > 0 )
+      {
+        --S_.r_;
+        S_.r_offset_ = B_.step_ + S_.r_offset_;
+      }
+      else
+        S_.r_offset_ = t + V_.RefractoryOffset_;
+    }
   }
-  return t_crossing;
 }
 
 void
@@ -387,12 +405,11 @@ mynest::gp_aeif_cond_exp::update( const Time& origin, const nest::long_t from, c
   assert( from < to );
   assert( State_::V_M == 0 );
 
-  double t, t_crossing, t_old;
+  double t, t_old, t_next_event;
 
   for ( long_t lag = from; lag < to; ++lag )
   {
     t = 0.;
-    t_crossing = 0.;
 
     if ( S_.r_ > 0 )
       --S_.r_;
@@ -414,40 +431,40 @@ mynest::gp_aeif_cond_exp::update( const Time& origin, const nest::long_t from, c
       std::copy(S_.y_, S_.y_ + sizeof(S_.y_)/sizeof(S_.y_[0]), S_.y_old_);
       t_old = t;
 
-      // propagate the ODE
-      const int status = gsl_odeiv_evolve_apply( B_.e_,
-      B_.c_,
-      B_.s_,
-      &B_.sys_,         // system of ODE
-      &t,             // from t
-      B_.step_,         // to t <= step
-      &B_.IntegrationStep_, // integration step size
-      S_.y_ );          // neuronal state
+      // check for end of refractory period
+      if ( P_.t_ref_ > 0. && S_.r_ == 0 && t < S_.r_offset_ )
+        t_next_event = S_.r_offset_;
+      else
+        t_next_event = B_.step_;
 
+      const int status = gsl_odeiv_evolve_apply( B_.e_,
+        B_.c_,
+        B_.s_,
+        &B_.sys_,             // system of ODE
+        &t,                   // from t
+        t_next_event,         // to t <= t_next_event
+        &B_.IntegrationStep_, // integration step size
+        S_.y_ );              // neuronal state
+
+      // checks
       if ( status != GSL_SUCCESS )
         throw GSLSolverFailure( get_name(), status );
-
-      // check for unreasonable values; we allow V_M to explode
       if ( S_.y_[ State_::V_M ] < -1e3 || S_.y_[ State_::W ] < -1e6 || S_.y_[ State_::W ] > 1e6 )
         throw NumericalInstability( get_name() );
 
-      // spikes are handled inside the while-loop
-      // due to spike-driven adaptation
-      if ( S_.r_ > 0 || t < S_.r_offset_)
+      // check refractoriness
+      if ( S_.r_ > 0 || S_.r_offset_ > 0. )
         S_.y_[ State_::V_M ] = P_.V_reset_; // only V_m is frozen
       else if ( S_.y_[ State_::V_M ] >= P_.V_peak_ )
       {
-        t_crossing = interpolate( t, t_old);
-
-        set_spiketime( Time::step( origin.get_steps() + lag + 1 ) );
-        SpikeEvent se;
-        network()->send( *this, se, lag );
+        interpolate_( t, t_old);
+        spiking_( lag, t );
       }
     }
 
-    // deduce the elapsed time since the spike from the refractory offset if necessary
-    if ( S_.r_ == 0 )
-      S_.r_offset_ = std::max( 0., S_.r_offset_ + t_crossing - t );
+    // reset refractory offset once refractory period is elapsed
+    if ( S_.r_ == 0 && std::abs(t - S_.r_offset_ ) < std::numeric_limits< double >::epsilon() )
+      S_.r_offset_ = 0.;
 
     // influence of received spikes on post-synaptic conductances
     S_.y_[ State_::G_EXC ] += B_.spike_exc_.get_value( lag );

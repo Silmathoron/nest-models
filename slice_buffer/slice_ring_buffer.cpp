@@ -25,14 +25,16 @@
 #include <limits>
 #include <cmath>
 
-nest::SliceRingBuffer::SliceRingBuffer()
+using namespace nest;
+
+mynest::SliceRingBuffer::SliceRingBuffer()
   : refract_( std::numeric_limits< long_t >::max(), 0, 0 )
 {
   //  resize();  // sets up queue_
 }
 
 void
-nest::SliceRingBuffer::resize()
+mynest::SliceRingBuffer::resize()
 {
   long_t newsize = static_cast< long_t >(
     std::ceil( static_cast< double >( Scheduler::get_min_delay() + Scheduler::get_max_delay() )
@@ -51,14 +53,14 @@ nest::SliceRingBuffer::resize()
 }
 
 void
-nest::SliceRingBuffer::clear()
+mynest::SliceRingBuffer::clear()
 {
   for ( size_t j = 0; j < queue_.size(); ++j )
     queue_[ j ].clear();
 }
 
 void
-nest::SliceRingBuffer::prepare_delivery()
+mynest::SliceRingBuffer::prepare_delivery()
 {
   // vector to deliver from in this slice
   deliver_ = &( queue_[ Scheduler::get_slice_modulo( 0 ) ] );
@@ -68,7 +70,7 @@ nest::SliceRingBuffer::prepare_delivery()
 }
 
 void
-nest::SliceRingBuffer::discard_events()
+mynest::SliceRingBuffer::discard_events()
 {
   // vector to deliver from in this slice
   deliver_ = &( queue_[ Scheduler::get_slice_modulo( 0 ) ] );

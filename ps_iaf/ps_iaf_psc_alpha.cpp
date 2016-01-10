@@ -270,8 +270,8 @@ mynest::ps_iaf_psc_alpha::init_state_( const Node& proto )
 void
 mynest::ps_iaf_psc_alpha::init_buffers_()
 {
-  B_.spike_events_.resize();
-  B_.spike_events_.clear();
+  B_.events_.resize();
+  B_.events_.clear();
   B_.currents_.clear();  // includes resize
   Archiving_Node::clear_history();
 
@@ -281,6 +281,7 @@ mynest::ps_iaf_psc_alpha::init_buffers_()
 
   // We must integrate this model with high-precision to obtain decent results
   B_.IntegrationStep_ = std::min( 0.01, B_.step_ );
+  B_.uncertainty = 0.01 * B_.IntegrationStep_;
 
   if ( B_.s_ == 0 )
     B_.s_ = gsl_odeiv_step_alloc( gsl_odeiv_step_rkf45, State_::STATE_VEC_SIZE );
@@ -312,8 +313,8 @@ mynest::ps_iaf_psc_alpha::calibrate()
 
   V_.i0_ex_ = 1.0 * numerics::e / P_.tau_syn_exc;
   V_.i0_in_ = 1.0 * numerics::e / P_.tau_syn_inh;
-  V_.RefractoryCounts_ = Time( Time::ms( P_.t_ref_ ) ).get_steps();
-  V_.RefractoryOffset_ = P_.t_ref_ - V_.RefractoryCounts_ * Time::get_resolution().get_ms();
+  V_.RefractoryCounts_ = Time( Time::ms( P_.t_ref_ ) ).get_steps() + 1;
+  V_.RefractoryOffset_ = P_.t_ref_ - ( V_.RefractoryCounts_ - 1 ) * Time::get_resolution().get_ms();
   assert( V_.RefractoryCounts_ >= 0 ); // since t_ref_ >= 0, this can only fail in error
   assert( V_.RefractoryOffset_ >= 0. );
 }
@@ -322,13 +323,11 @@ mynest::ps_iaf_psc_alpha::calibrate()
  * Update and spike handling functions
  * ---------------------------------------------------------------- */
 
-double
+void
 mynest::ps_iaf_psc_alpha::interpolate_( double& t, double t_old )
 {
   // find the exact time when the threshold was crossed
   double dt_crossing = ( P_.V_th - S_.y_old_[ State_::V_M ] ) * ( t - t_old ) / ( S_.y_[ State_::V_M ] - S_.y_old_[ State_::V_M ] );
-  double t_crossing = t_old + dt_crossing;
-  t = t_crossing;
 
   // reset V_m and set the other variables correctly
   S_.y_[ State_::V_M ] = P_.V_reset_;
@@ -336,28 +335,50 @@ mynest::ps_iaf_psc_alpha::interpolate_( double& t, double t_old )
   {
     S_.y_[i] = S_.y_old_[i] + ( S_.y_[i] - S_.y_old_[i] ) / ( t - t_old ) * dt_crossing;
   }
-  S_.r_ = V_.RefractoryCounts_;
-  S_.r_offset_ = ( S_.r_ == 0) ? 0. : V_.RefractoryOffset_ - (B_.step_ - t);
-  if ( S_.r_offset_ < 0. )
-  {
-    --S_.r_;
-    S_.r_offset_ = B_.step_ + S_.r_offset_;
-  }
-  return t_crossing;
+
+  t = t_old + dt_crossing;
 }
 
 void
-mynest::ps_iaf_psc_alpha::update( const Time& origin, const nest::long_t from, const nest::long_t to )
+mynest::ps_iaf_psc_alpha::spiking_( const long_t T, const long_t lag, const double t )
+{
+  // spike event
+  const double_t spike_offset = B_.step_ - t;
+  SpikeEvent se;
+  se.set_offset( spike_offset );
+  network()->send( *this, se, lag );
+
+  // refractoriness
+  if ( P_.t_ref_ > 0. )
+  {
+    S_.r_ = V_.RefractoryCounts_;
+    S_.r_offset_ = V_.RefractoryOffset_ - (B_.step_ - t);
+    if ( S_.r_offset_ < 0. )
+    {
+      if ( S_.r_ > 0 )
+      {
+        --S_.r_;
+        S_.r_offset_ = B_.step_ + S_.r_offset_;
+      }
+      else
+        S_.r_offset_ = t + V_.RefractoryOffset_;
+    }
+    B_.events_.set_refractory( T + S_.r_, B_.step_ - S_.r_offset_ );
+  }
+}
+
+void
+mynest::ps_iaf_psc_alpha::update( const Time& origin, const long_t from, const long_t to )
 {
   assert( to >= 0 && ( delay ) from < Scheduler::get_min_delay() );
   assert( from < to );
   assert( State_::V_M == 0 );
 
-  double t, t_crossing, t_old, t_next_spike, spike_effect_in, spike_effect_ex;
+  double t, t_old, t_next_event, spike_in, spike_ex;
 
   // at start of slice, tell input queue to prepare for delivery
   if ( from == 0 )
-    B_.spike_events_.prepare_delivery();
+    B_.events_.prepare_delivery();
 
   /* Neurons may have been initialized to superthreshold potentials.
      We need to check for this here and issue spikes at the beginning of
@@ -366,19 +387,18 @@ mynest::ps_iaf_psc_alpha::update( const Time& origin, const nest::long_t from, c
   if ( S_.y_[ State_::V_M ] >= P_.V_th )
   {
     S_.y_[ State_::V_M ] = P_.V_reset_;
-    set_spiketime( Time::step( origin.get_steps() + from + 1 ) );
     SpikeEvent se;
-    se.set_offset( B_.step_ * ( 1 - std::numeric_limits< nest::double_t >::epsilon() ) );
+    se.set_offset( B_.step_ * ( 1 - std::numeric_limits< double_t >::epsilon() ) );
     network()->send( *this, se, from );
   }
 
   for ( long_t lag = from; lag < to; ++lag )
   {
+    gsl_odeiv_step_reset( B_.s_ );
     // time at start of update step
-    const nest::long_t T = origin.get_steps() + lag;
+    const long_t T = origin.get_steps() + lag;
     t = 0.;
-    t_crossing;
-    t_next_spike = 0.;
+    t_next_event = 0.;
 
     if ( S_.r_ > 0 )
       --S_.r_;
@@ -399,46 +419,42 @@ mynest::ps_iaf_psc_alpha::update( const Time& origin, const nest::long_t from, c
       // store the previous values of V_m, g_exc, g_inh, and t
       std::copy(S_.y_, S_.y_ + sizeof(S_.y_)/sizeof(S_.y_[0]), S_.y_old_);
       t_old = t;
-      B_.spike_events_.get_next_spike(T, t_next_spike, spike_effect_in, spike_effect_ex, B_.step_ );
+      B_.events_.get_next_event(T, t_next_event, spike_in, spike_ex, B_.step_ );
 
-      // propagate the ODE
-      const int status = gsl_odeiv_evolve_apply( B_.e_,
-      B_.c_,
-      B_.s_,
-      &B_.sys_,         // system of ODE
-      &t,             // from t
-      t_next_spike,         // to t <= t_next_spike
-      &B_.IntegrationStep_, // integration step size
-      S_.y_ );          // neuronal state
+      while (t < t_next_event)
+      {
+        const int status = gsl_odeiv_evolve_apply( B_.e_,
+        B_.c_,
+        B_.s_,
+        &B_.sys_,             // system of ODE
+        &t,                   // from t
+        t_next_event,         // to t <= t_next_event
+        &B_.IntegrationStep_, // integration step size
+        S_.y_ );              // neuronal state
 
-      if ( status != GSL_SUCCESS )
-        throw GSLSolverFailure( get_name(), status );
+        if ( status != GSL_SUCCESS )
+          throw GSLSolverFailure( get_name(), status );
 
-      // check for unreasonable values; we allow V_M to explode
-      if ( S_.y_[ State_::V_M ] < -1e3 )
-        throw NumericalInstability( get_name() );
+        // check for unreasonable values; we allow V_M to explode
+        if ( S_.y_[ State_::V_M ] < -1e3 )
+          throw NumericalInstability( get_name() );
+      }
 
-      // spikes are handled inside the while-loop
-      // due to spike-driven adaptation
-      if ( S_.r_ > 0 || t < S_.r_offset_ )
+      // check refractoriness
+      if ( S_.r_ > 0 || S_.r_offset_ > 0. )
         S_.y_[ State_::V_M ] = P_.V_reset_; // only V_m is frozen
       else if ( S_.y_[ State_::V_M ] >= P_.V_th )
       {
         // find the exact time when the threshold was crossed
-        t_crossing = interpolate_( t, t_old);
-
-        set_spiketime( Time::step( origin.get_steps() + lag + 1 ) );
-        SpikeEvent se;
-        se.set_offset( B_.step_ - t_crossing );
-        network()->send( *this, se, lag );
+        interpolate_( t, t_old );
+        spiking_( T, lag, t );
       }
 
-      // deduce the elapsed time since the spike from the refractory offset if necessary
-      if ( S_.r_ == 0 )
-        S_.r_offset_ = std::max( 0., S_.r_offset_ + t_crossing - t );
+      if ( S_.r_ == 0 && std::abs(t - S_.r_offset_) < std::numeric_limits< double >::epsilon() )
+        S_.r_offset_ = 0.;
 
-      S_.y_[ State_::DI_EXC ] += spike_effect_ex * V_.i0_ex_;
-      S_.y_[ State_::DI_INH ] += spike_effect_in * V_.i0_in_;
+      S_.y_[ State_::DI_EXC ] += spike_ex * V_.i0_ex_;
+      S_.y_[ State_::DI_INH ] += spike_in * V_.i0_in_;
     }
 
     // set new input current
@@ -455,7 +471,7 @@ mynest::ps_iaf_psc_alpha::handle( SpikeEvent& e )
   assert( e.get_delay() > 0 );
 
   const long_t Tdeliver = e.get_stamp().get_steps() + e.get_delay() - 1;
-  B_.spike_events_.add_spike( e.get_rel_delivery_steps( network()->get_slice_origin() ),
+  B_.events_.add_spike( e.get_rel_delivery_steps( network()->get_slice_origin() ),
     Tdeliver,
     e.get_offset(),
     e.get_weight() * e.get_multiplicity() );

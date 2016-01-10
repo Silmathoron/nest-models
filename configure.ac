@@ -1,5 +1,5 @@
 AC_PREREQ(2.52)
-AC_INIT([nngt_module], [0.1], [nest_user@nest-initiative.org])
+AC_INIT([nngt_module], [0.1], [tanguy.fardet@univ-paris-diderot.fr])
 
 # Exporting source and build directories requires full path names.
 # Thus we have to expand.

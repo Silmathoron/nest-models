@@ -32,7 +32,7 @@
 #include "nest.h"
 #include "scheduler.h"
 
-namespace nest
+namespace mynest
 {
 /**
  * Queue for all spikes arriving into a neuron.
@@ -65,8 +65,8 @@ public:
    * @param  ps_offset  Precise timing offset of spike time
    * @param  weight     Weight of spike.
    */
-  void add_spike( const delay rel_delivery,
-    const long_t stamp,
+  void add_spike( const nest::delay rel_delivery,
+    const nest::long_t stamp,
     const double ps_offset,
     const double weight );
 
@@ -96,11 +96,13 @@ public:
    *                   If several spikes coincide, the sum of their
    *                   weights is returned a single spike.
    */
-  void get_next_spike( const long_t req_stamp,
-    double_t& ps_offset,
+  void get_next_event( const nest::long_t req_stamp,
+    nest::double_t& ps_offset,
     double& weight_in,
     double& weight_ex,
-    double_t step_ );
+    const nest::double_t step_ );
+
+  void set_refractory( const nest::long_t, const double offset );
 
   /**
    * Clear buffer
@@ -108,7 +110,7 @@ public:
   void clear();
 
   /**
-   * Resize the buffer according to min_delay and max_delay.
+   * Resize the buffer according to min_nest::delay and max_delay.
    */
   void resize();
 
@@ -118,7 +120,7 @@ private:
    */
   struct SpikeInfo
   {
-    SpikeInfo( long_t stamp, double_t ps_offset, double_t weight );
+    SpikeInfo( nest::long_t stamp, nest::double_t ps_offset, nest::double_t weight );
 
     bool operator<( const SpikeInfo& b ) const;
     bool operator<=( const SpikeInfo& b ) const;
@@ -126,12 +128,12 @@ private:
 
     // data elements must not be const, since heap implementation
     // in DEC STL uses operator=().
-    long_t stamp_;       //<! spike's time stamp
-    double_t ps_offset_; //<! spike offset is PS sense
-    double_t weight_;    //<! spike weight
+    nest::long_t stamp_;       //<! spike's time stamp
+    nest::double_t ps_offset_; //<! spike offset is PS sense
+    nest::double_t weight_;    //<! spike weight
   };
 
-  //! entire queue, one slot per min_delay block within max_delay
+  //! entire queue, one slot per min_nest::delay block within max_delay
   std::vector< std::vector< SpikeInfo > > queue_;
 
   //! slot to deliver from
@@ -141,57 +143,90 @@ private:
 };
 
 inline void
-SliceRingBuffer::add_spike( const delay rel_delivery,
-  const long_t stamp,
+SliceRingBuffer::add_spike( const nest::delay rel_delivery,
+  const nest::long_t stamp,
   const double ps_offset,
   const double weight )
 {
-  const delay idx = Scheduler::get_slice_modulo( rel_delivery );
-  assert( ( size_t ) idx < queue_.size() );
+  const nest::delay idx = nest::Scheduler::get_slice_modulo( rel_delivery );
+  assert( ( nest::size_t ) idx < queue_.size() );
   assert( ps_offset >= 0 );
 
   queue_[ idx ].push_back( SpikeInfo( stamp, ps_offset, weight ) );
 }
 
 inline void
-SliceRingBuffer::get_next_spike( const long_t req_stamp,
-  double_t& ps_offset,
+SliceRingBuffer::get_next_event( const nest::long_t req_stamp,
+  nest::double_t& ps_offset,
   double& weight_in,
   double& weight_ex,
-  double_t step_ )
+  const nest::double_t step_ )
 {
   // accumulate weights of all spikes with same stamp AND offset
   weight_in = 0.; // accumulate absolute weights of inhibitory
   weight_ex = 0.; // accumulate weights of excitatory
-  
+
   if ( deliver_->empty() )
-    ps_offset = step_;
+  {
+    if ( refract_.stamp_ == req_stamp )
+    {
+      ps_offset = step_ - refract_.ps_offset_;
+      refract_.stamp_ = std::numeric_limits< nest::long_t >::max();
+    }
+    else
+      ps_offset = step_;
+  }
   else if ( deliver_->back().stamp_ == req_stamp )
   {
-    double weight_tmp;
     // we have an event to deliver, register its offset
     double ps_offset_tmp = deliver_->back().ps_offset_;
-    while ( !deliver_->empty() && deliver_->back().ps_offset_ == ps_offset_tmp
-      && deliver_->back().stamp_ == req_stamp )
+
+    if ( refract_.stamp_ == req_stamp && refract_.ps_offset_ > ps_offset_tmp )
     {
-      weight_tmp = deliver_->back().weight_;
-      if ( weight_tmp <= 0 )
-        weight_in -= weight_tmp;
-      else
-        weight_ex += weight_tmp;
-      deliver_->pop_back();
+      // if relies on stamp_==long_t::max() if not refractory
+      // return from refractoriness
+      ps_offset = step_ - refract_.ps_offset_;
+      // mark as non-refractory
+      refract_.stamp_ = std::numeric_limits< nest::long_t >::max();
     }
-    ps_offset = step_ - ps_offset_tmp;
+    else
+    {
+      double weight_tmp;
+      while ( !deliver_->empty() && deliver_->back().ps_offset_ == ps_offset_tmp
+        && deliver_->back().stamp_ == req_stamp )
+      {
+        weight_tmp = deliver_->back().weight_;
+        if ( weight_tmp <= 0 )
+          weight_in -= weight_tmp;
+        else
+          weight_ex += weight_tmp;
+        deliver_->pop_back();
+      }
+      ps_offset = step_ - ps_offset_tmp;
+    }
   }
   else
   {
     // ensure that we are not blocked by spike from the past, cf #404
     assert( deliver_->back().stamp_ > req_stamp );
-    ps_offset = step_;
+    if ( refract_.stamp_ == req_stamp )
+    {
+      ps_offset = step_ - refract_.ps_offset_;
+      refract_.stamp_ = std::numeric_limits< nest::long_t >::max();
+    }
+    else
+      ps_offset = step_;
   }
 }
 
-inline SliceRingBuffer::SpikeInfo::SpikeInfo( long_t stamp, double_t ps_offset, double_t weight )
+inline void
+SliceRingBuffer::set_refractory( const nest::long_t stamp,
+  const double ps_offset )
+{
+  refract_ = SpikeInfo( stamp, ps_offset, 0. );
+}
+
+inline SliceRingBuffer::SpikeInfo::SpikeInfo( nest::long_t stamp, nest::double_t ps_offset, nest::double_t weight )
   : stamp_( stamp )
   , ps_offset_( ps_offset )
   , weight_( weight )

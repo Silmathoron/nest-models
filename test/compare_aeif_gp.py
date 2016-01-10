@@ -4,6 +4,7 @@
 """ Script to test the precise aeif behaviours """
 
 import argparse
+from itertools import chain
 import time
 import numpy as np
 
@@ -36,7 +37,19 @@ group.add_argument("-s", "--size", action="store", default=5000,
 
 ## parse
 args = parser.parse_args()
-args.no_network = False
+args.no_network = True
+
+
+#-----------------------------------------------------------------------------#
+# Parameters
+#------------------------
+#
+
+#~ models = [ "aeif_cond_exp", "aeif_cond_alpha_mod", "gp_aeif_cond_exp", "ps_aeif_cond_exp" ]
+models = [ "aeif_cond_alpha_RK5", "gp_aeif_cond_exp", "ps_aeif_cond_exp" ]
+num_neurons = len(models)
+
+tpl_ignore = ( "V_m", "w", "vp", "global_id", "thread_local_id", "thread", "model", "local_id", "t_spike" )
 
 
 #-----------------------------------------------------------------------------#
@@ -51,6 +64,9 @@ if args.indivdual:
     nest.SetKernelStatus({"resolution":r_resolution})
     d_step_current = 160.
     r_min_voltage = -70.
+
+    # compare the precise implementation and the others
+    voltage_precise = [ None for _ in range(num_neurons) ]
 
     # create AdExp neurons
     di_param = {
@@ -69,10 +85,7 @@ if args.indivdual:
     }
 
     # models
-    models = [ "aeif_cond_exp", "aeif_cond_alpha_mod", "gp_aeif_cond_exp", "ps_aeif_cond_exp" ]
     lst_neurons = [ nest.Create(model,params=di_param) for model in models ]
-    num_neurons = len(lst_neurons)
-
 
     step_gen = nest.Create("step_current_generator",1,{"amplitude_times": [50.,1500.], "amplitude_values":[d_step_current,0.]})
     multimeter = nest.Create("multimeter",num_neurons)
@@ -85,23 +98,39 @@ if args.indivdual:
     nest.Simulate(1600.0)
 
     # plot
-
-    plt.close("all")
     fig, (ax1, ax2) = plt.subplots(2,1,sharex=True)
-
     # get the neuron's membrane potential
     for i in range(num_neurons):
         dmm = nest.GetStatus(multimeter)[i]
         da_voltage = dmm["events"]["V_m"]
+        voltage_precise[i] = da_voltage
+        if i == num_neurons-1:
+          for j in range(num_neurons-1):
+            voltage_precise[j] -= da_voltage
         da_adapt = dmm["events"]["w"]
         da_time = dmm["events"]["times"]
-        ax1.plot(da_time,da_voltage,c=cm.hot(i/float(num_neurons)), label=models[i])
+        ax1.plot(da_time,da_voltage,c=cm.hot(0.8*i/float(num_neurons)), label=models[i])
         ax1.set_ylabel('Voltage (mV)')
-        ax2.plot(da_time,da_adapt,c=cm.hot(i/float(num_neurons)), label=models[i])
+        ax2.plot(da_time,da_adapt,c=cm.hot(0.8*i/float(num_neurons)), label=models[i])
         ax2.set_xlabel('Time (ms)')
         ax2.set_ylabel('Current (pA)')
 
     plt.legend(loc=4)
+
+    #~ lst_di_param = [ nest.GetStatus(neuron)[0] for neuron in lst_neurons ]
+    #~ for di in lst_di_param:
+      #~ b_equal = True
+      #~ for key,val in lst_di_param[-1].iteritems():
+        #~ if key not in tpl_ignore:
+          #~ b_equal *= (val == di[key])
+          #~ if not b_equal:
+            #~ print(key,val,di[key])
+      #~ print(b_equal)
+
+    fig2, axes = plt.subplots(num_neurons,sharex=True)
+    for i,varray in enumerate(voltage_precise):
+      axes[i].plot(varray)
+      axes[i].set_title(models[i])
 
 
 #-----------------------------------------------------------------------------#
