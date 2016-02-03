@@ -58,7 +58,7 @@ tpl_ignore = ( "V_m", "w", "vp", "global_id", "thread_local_id", "thread", "mode
 #
 
 nest.ResetKernel()
-nest.SetKernelStatus({"local_num_threads": 6})
+nest.SetKernelStatus({"local_num_threads": 6, "overwrite_files":True})
 if args.indivdual:
     r_resolution = 0.01
     nest.SetKernelStatus({"resolution":r_resolution})
@@ -89,7 +89,7 @@ if args.indivdual:
 
     step_gen = nest.Create("step_current_generator",1,{"amplitude_times": [50.,1500.], "amplitude_values":[d_step_current,0.]})
     multimeter = nest.Create("multimeter",num_neurons)
-    nest.SetStatus(multimeter, {"withtime":True, "interval":r_resolution, "record_from":["V_m","w"]})
+    nest.SetStatus(multimeter, {"withtime":True, "interval":r_resolution, "record_from":["V_m","w"], "to_file":True})
 
     for i,neuron in enumerate(lst_neurons):
         nest.Connect(step_gen,neuron)
