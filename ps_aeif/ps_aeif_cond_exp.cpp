@@ -407,8 +407,6 @@ mynest::ps_aeif_cond_exp::update( const Time& origin, const nest::long_t from, c
   assert( from < to );
   assert( State_::V_M == 0 );
 
-  double t, t_old, t_next_event, spike_in, spike_ex;
-
   // at start of slice, tell input queue to prepare for delivery
   if ( from == 0 )
     B_.events_.prepare_delivery();
@@ -425,6 +423,9 @@ mynest::ps_aeif_cond_exp::update( const Time& origin, const nest::long_t from, c
     se.set_offset( B_.step_ * ( 1 - std::numeric_limits< double_t >::epsilon() ) );
     network()->send( *this, se, from );
   }
+  
+  // resume usual procedure (like in non-precise models
+  double t, t_old, t_next_event, spike_in, spike_ex;
 
   for ( long_t lag = from; lag < to; ++lag )
   {
@@ -482,7 +483,7 @@ mynest::ps_aeif_cond_exp::update( const Time& origin, const nest::long_t from, c
       }
 
       // reset refractory offset once refractory period is elapsed
-      if ( S_.r_ == 0 && std::abs(t - S_.r_offset_ ) < B_.uncertainty )
+      if ( S_.r_ == 0 && std::abs(t - S_.r_offset_ ) < std::numeric_limits< double >::epsilon() )
         S_.r_offset_ = 0.;
 
       S_.y_[ State_::G_EXC ] += spike_ex;

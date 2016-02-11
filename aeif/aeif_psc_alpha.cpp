@@ -1,9 +1,9 @@
 /*
- *  gp_aeif_cond_exp.cpp
+ *  aeif_psc_alpha.cpp
  *
  */
 
-#include "gp_aeif_cond_exp.h"
+#include "aeif_psc_alpha.h"
 #include "nest_names.h" // in aeif but not in example
 
 #ifdef HAVE_GSL_1_11
@@ -33,7 +33,7 @@ using namespace nest;
  * Recordables map
  * ---------------------------------------------------------------- */
 
-nest::RecordablesMap< mynest::gp_aeif_cond_exp > mynest::gp_aeif_cond_exp::recordablesMap_;
+nest::RecordablesMap< mynest::aeif_psc_alpha > mynest::aeif_psc_alpha::recordablesMap_;
 
 namespace nest // template specialization must be placed in namespace
 {
@@ -41,12 +41,12 @@ namespace nest // template specialization must be placed in namespace
   // for each quantity to be recorded.
   template <>
   void
-  RecordablesMap< mynest::gp_aeif_cond_exp >::create()
+  RecordablesMap< mynest::aeif_psc_alpha >::create()
   {
-    insert_( names::V_m, &mynest::gp_aeif_cond_exp::get_y_elem_< mynest::gp_aeif_cond_exp::State_::V_M > );
-    insert_( names::g_ex, &mynest::gp_aeif_cond_exp::get_y_elem_< mynest::gp_aeif_cond_exp::State_::G_EXC > );
-    insert_( names::g_in, &mynest::gp_aeif_cond_exp::get_y_elem_< mynest::gp_aeif_cond_exp::State_::G_INH > );
-    insert_( names::w, &mynest::gp_aeif_cond_exp::get_y_elem_< mynest::gp_aeif_cond_exp::State_::W > );
+    insert_( names::V_m, &mynest::aeif_psc_alpha::get_y_elem_< mynest::aeif_psc_alpha::State_::V_M > );
+    insert_( names::I_ex, &mynest::aeif_psc_alpha::get_y_elem_< mynest::aeif_psc_alpha::State_::I_EXC > );
+    insert_( names::I_in, &mynest::aeif_psc_alpha::get_y_elem_< mynest::aeif_psc_alpha::State_::I_INH > );
+    insert_( names::w, &mynest::aeif_psc_alpha::get_y_elem_< mynest::aeif_psc_alpha::State_::W > );
   }
 }
 
@@ -56,14 +56,14 @@ namespace nest // template specialization must be placed in namespace
  * ---------------------------------------------------------------- */
 
 extern "C" int
-mynest::gp_aeif_cond_exp_dynamics( double, const double y[], double f[], void* pnode )
+mynest::aeif_psc_alpha_dynamics( double, const double y[], double f[], void* pnode )
 {
   // a shorthand
-  typedef mynest::gp_aeif_cond_exp::State_ S;
+  typedef mynest::aeif_psc_alpha::State_ S;
 
   // get access to node so we can almost work as in a member function
   assert( pnode );
-  const mynest::gp_aeif_cond_exp& node = *( reinterpret_cast< mynest::gp_aeif_cond_exp* >( pnode ) );
+  const mynest::aeif_psc_alpha& node = *( reinterpret_cast< mynest::aeif_psc_alpha* >( pnode ) );
 
   // y[] here is---and must be---the state vector supplied by the integrator,
   // not the state vector in the node, node.S_.y[].
@@ -73,12 +73,11 @@ mynest::gp_aeif_cond_exp_dynamics( double, const double y[], double f[], void* p
 
   // shorthand for state variables
   const double_t& V = y[ S::V_M ];
-  const double_t& g_ex = y[ S::G_EXC ];
-  const double_t& g_in = y[ S::G_INH ];
+  const double_t& dI_ex = y[ S::DI_EXC ];
+  const double_t& I_ex = y[ S::I_EXC ];
+  const double_t& dI_in = y[ S::DI_INH ];
+  const double_t& I_in = y[ S::I_INH ];
   const double_t& w = y[ S::W ];
-
-  const double_t I_syn_exc = g_ex * ( V - node.P_.E_ex );
-  const double_t I_syn_inh = g_in * ( V - node.P_.E_in );
 
   // We pre-compute the argument of the exponential
   const double_t exp_arg = ( V - node.P_.V_th ) / node.P_.Delta_T;
@@ -90,11 +89,14 @@ mynest::gp_aeif_cond_exp_dynamics( double, const double y[], double f[], void* p
   const double_t I_spike = node.P_.Delta_T * std::exp( std::min( exp_arg, MAX_EXP_ARG ) );
 
   // dv/dt
-  f[ S::V_M ] = ( -node.P_.g_L * ( ( V - node.P_.E_L ) - I_spike ) - I_syn_exc - I_syn_inh - w
+  f[ S::V_M ] = ( -node.P_.g_L * ( ( V - node.P_.E_L ) - I_spike ) + I_ex + I_in - w
             + node.P_.I_e + node.B_.I_stim_ ) / node.P_.C_m;
 
-  f[ S::G_EXC ] = - g_ex / node.P_.tau_syn_ex; // Synaptic Conductance (nS)
-  f[ S::G_INH ] = - g_in / node.P_.tau_syn_in; // Synaptic Conductance (nS)
+  f[ S::DI_EXC ] = -dI_ex / node.P_.tau_syn_ex;
+  f[ S::I_EXC ] = dI_ex - I_ex / node.P_.tau_syn_ex; // Synaptic Conductance (nS)
+
+  f[ S::DI_INH ] = -dI_in / node.P_.tau_syn_in;
+  f[ S::I_INH ] = dI_in - I_in / node.P_.tau_syn_in; // Synaptic Conductance (nS)
 
   // Adaptation current w.
   f[ S::W ] = ( node.P_.a * ( V - node.P_.E_L ) - w ) / node.P_.tau_w;
@@ -107,7 +109,7 @@ mynest::gp_aeif_cond_exp_dynamics( double, const double y[], double f[], void* p
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
-mynest::gp_aeif_cond_exp::Parameters_::Parameters_()
+mynest::aeif_psc_alpha::Parameters_::Parameters_()
   : V_peak_( 0.0 )   // mV, should not be larger that V_th+10
   , V_reset_( -60.0 ) // mV
   , t_ref_( 0.0 )    // ms
@@ -128,31 +130,28 @@ mynest::gp_aeif_cond_exp::Parameters_::Parameters_()
 {
 }
 
-mynest::gp_aeif_cond_exp::State_::State_( const Parameters_& p )
+mynest::aeif_psc_alpha::State_::State_( const Parameters_& p )
   : r_( 0 )
-  , r_offset_ ( 0. )
 {
   y_[ 0 ] = p.E_L;
   for ( size_t i = 1; i < STATE_VEC_SIZE; ++i )
    y_[ i ] = 0;
 }
 
-mynest::gp_aeif_cond_exp::State_::State_( const State_& s )
+mynest::aeif_psc_alpha::State_::State_( const State_& s )
   : r_( s.r_ )
-  , r_offset_ ( s.r_offset_ )
 {
   for ( size_t i = 0; i < STATE_VEC_SIZE; ++i )
    y_[ i ] = s.y_[ i ];
 }
 
-mynest::gp_aeif_cond_exp::State_& mynest::gp_aeif_cond_exp::State_::operator=( const State_& s )
+mynest::aeif_psc_alpha::State_& mynest::aeif_psc_alpha::State_::operator=( const State_& s )
 {
   assert( this != &s ); // would be bad logical error in program
 
   for ( size_t i = 0; i < STATE_VEC_SIZE; ++i )
    y_[ i ] = s.y_[ i ];
   r_ = s.r_;
-  r_offset_ = s.r_offset_;
   return *this;
 }
 
@@ -162,7 +161,7 @@ mynest::gp_aeif_cond_exp::State_& mynest::gp_aeif_cond_exp::State_::operator=( c
  * ---------------------------------------------------------------- */
 
 void
-mynest::gp_aeif_cond_exp::Parameters_::get( DictionaryDatum& d ) const
+mynest::aeif_psc_alpha::Parameters_::get( DictionaryDatum& d ) const
 {
   def< double >( d, names::C_m, C_m );
   def< double >( d, names::V_th, V_th );
@@ -184,7 +183,7 @@ mynest::gp_aeif_cond_exp::Parameters_::get( DictionaryDatum& d ) const
 }
 
 void
-mynest::gp_aeif_cond_exp::Parameters_::set( const DictionaryDatum& d )
+mynest::aeif_psc_alpha::Parameters_::set( const DictionaryDatum& d )
 {
   updateValue< double >( d, names::V_th, V_th );
   updateValue< double >( d, names::V_peak, V_peak_ );
@@ -229,27 +228,24 @@ mynest::gp_aeif_cond_exp::Parameters_::set( const DictionaryDatum& d )
 }
 
 void
-mynest::gp_aeif_cond_exp::State_::get( DictionaryDatum& d ) const
+mynest::aeif_psc_alpha::State_::get( DictionaryDatum& d ) const
 {
   def< double >( d, names::V_m, y_[ V_M ] );
-  def< double >( d, names::g_ex, y_[ G_EXC ] );
-  def< double >( d, names::g_in, y_[ G_INH ] );
+  def< double >( d, names::I_ex, y_[ I_EXC ] );
+  def< double >( d, names::I_in, y_[ I_INH ] );
   def< double >( d, names::w, y_[ W ] );
 }
 
 void
-mynest::gp_aeif_cond_exp::State_::set( const DictionaryDatum& d, const Parameters_& )
+mynest::aeif_psc_alpha::State_::set( const DictionaryDatum& d, const Parameters_& )
 {
   updateValue< double >( d, names::V_m, y_[ V_M ] );
-  updateValue< double >( d, names::g_ex, y_[ G_EXC ] );
-  updateValue< double >( d, names::g_in, y_[ G_INH ] );
+  updateValue< double >( d, names::I_ex, y_[ I_EXC ] );
+  updateValue< double >( d, names::I_in, y_[ I_INH ] );
   updateValue< double >( d, names::w, y_[ W ] );
-
-  if ( y_[ G_EXC ] < 0 || y_[ G_INH ] < 0 )
-   throw BadProperty( "Conductances must not be negative." );
 }
 
-mynest::gp_aeif_cond_exp::Buffers_::Buffers_( gp_aeif_cond_exp& n )
+mynest::aeif_psc_alpha::Buffers_::Buffers_( aeif_psc_alpha& n )
   : logger_( n )
   , s_( 0 )
   , c_( 0 )
@@ -259,7 +255,7 @@ mynest::gp_aeif_cond_exp::Buffers_::Buffers_( gp_aeif_cond_exp& n )
   // init_buffers_().
 }
 
-mynest::gp_aeif_cond_exp::Buffers_::Buffers_( const Buffers_&, gp_aeif_cond_exp& n )
+mynest::aeif_psc_alpha::Buffers_::Buffers_( const Buffers_&, aeif_psc_alpha& n )
   : logger_( n )
   , s_( 0 )
   , c_( 0 )
@@ -274,7 +270,7 @@ mynest::gp_aeif_cond_exp::Buffers_::Buffers_( const Buffers_&, gp_aeif_cond_exp&
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-mynest::gp_aeif_cond_exp::gp_aeif_cond_exp()
+mynest::aeif_psc_alpha::aeif_psc_alpha()
   : Archiving_Node()
   , P_()
   , S_( P_ )
@@ -283,7 +279,7 @@ mynest::gp_aeif_cond_exp::gp_aeif_cond_exp()
   recordablesMap_.create();
 }
 
-mynest::gp_aeif_cond_exp::gp_aeif_cond_exp( const gp_aeif_cond_exp& n )
+mynest::aeif_psc_alpha::aeif_psc_alpha( const aeif_psc_alpha& n )
   : Archiving_Node( n )
   , P_( n.P_ )
   , S_( n.S_ )
@@ -296,14 +292,14 @@ mynest::gp_aeif_cond_exp::gp_aeif_cond_exp( const gp_aeif_cond_exp& n )
  * ---------------------------------------------------------------- */
 
 void
-mynest::gp_aeif_cond_exp::init_state_( const Node& proto )
+mynest::aeif_psc_alpha::init_state_( const Node& proto )
 {
-  const gp_aeif_cond_exp& pr = downcast< gp_aeif_cond_exp >( proto );
+  const aeif_psc_alpha& pr = downcast< aeif_psc_alpha >( proto );
   S_ = pr.S_;
 }
 
 void
-mynest::gp_aeif_cond_exp::init_buffers_()
+mynest::aeif_psc_alpha::init_buffers_()
 {
   B_.spike_exc_.clear(); // includes resize
   B_.spike_inh_.clear(); // includes resize
@@ -316,7 +312,6 @@ mynest::gp_aeif_cond_exp::init_buffers_()
 
   // We must integrate this model with high-precision to obtain decent results
   B_.IntegrationStep_ = std::min( 0.01, B_.step_ );
-  B_.uncertainty = 0.0001 * B_.IntegrationStep_;
 
   if ( B_.s_ == 0 )
     B_.s_ = gsl_odeiv_step_alloc( gsl_odeiv_step_rkf45, State_::STATE_VEC_SIZE );
@@ -333,7 +328,7 @@ mynest::gp_aeif_cond_exp::init_buffers_()
   else
     gsl_odeiv_evolve_reset( B_.e_ );
 
-  B_.sys_.function = gp_aeif_cond_exp_dynamics;
+  B_.sys_.function = aeif_psc_alpha_dynamics;
   B_.sys_.jacobian = NULL;
   B_.sys_.dimension = State_::STATE_VEC_SIZE;
   B_.sys_.params = reinterpret_cast< void* >( this );
@@ -342,14 +337,14 @@ mynest::gp_aeif_cond_exp::init_buffers_()
 }
 
 void
-mynest::gp_aeif_cond_exp::calibrate()
+mynest::aeif_psc_alpha::calibrate()
 {
   B_.logger_.init(); // ensures initialization in case mm connected after Simulate
 
+  V_.I0_ex_ = 1.0 * numerics::e / P_.tau_syn_ex;
+  V_.I0_in_ = 1.0 * numerics::e / P_.tau_syn_in;
   V_.RefractoryCounts_ = Time( Time::ms( P_.t_ref_ ) ).get_steps();
-  V_.RefractoryOffset_ = P_.t_ref_ - V_.RefractoryCounts_ * Time::get_resolution().get_ms();
   assert( V_.RefractoryCounts_ >= 0 ); // since t_ref_ >= 0, this can only fail in error
-  assert( V_.RefractoryOffset_ >= 0. );
 }
 
 /* ----------------------------------------------------------------
@@ -357,59 +352,15 @@ mynest::gp_aeif_cond_exp::calibrate()
  * ---------------------------------------------------------------- */
 
 void
-mynest::gp_aeif_cond_exp::interpolate_( double& t, double t_old )
-{
-  // find the exact time when the threshold was crossed
-  double dt_crossing = ( P_.V_peak_ - S_.y_old_[ State_::V_M ] ) * ( t - t_old ) / ( S_.y_[ State_::V_M ] - S_.y_old_[ State_::V_M ] );
-
-  // reset V_m and set the other variables correctly
-  S_.y_[ State_::V_M ] = P_.V_reset_;
-  for ( int i=1; i < State_::STATE_VEC_SIZE; ++i )
-  {
-    S_.y_[i] = S_.y_old_[i] + ( S_.y_[i] - S_.y_old_[i] ) / ( t - t_old ) * dt_crossing;
-  }
-  S_.y_[ State_::W ] += P_.b; // spike-driven adaptation
-
-  t = t_old + dt_crossing;
-}
-
-void
-mynest::gp_aeif_cond_exp::spiking_( const long_t lag, const double t )
-{
-  // spike event
-  SpikeEvent se;
-  network()->send( *this, se, lag );
-
-  // refractoriness
-  if ( P_.t_ref_ > 0. )
-  {
-    S_.r_ = V_.RefractoryCounts_;
-    S_.r_offset_ = V_.RefractoryOffset_ - (B_.step_ - t);
-    if ( S_.r_offset_ < 0. )
-    {
-      if ( S_.r_ > 0 )
-      {
-        --S_.r_;
-        S_.r_offset_ = B_.step_ + S_.r_offset_;
-      }
-      else
-        S_.r_offset_ = t + V_.RefractoryOffset_;
-    }
-  }
-}
-
-void
-mynest::gp_aeif_cond_exp::update( const Time& origin, const nest::long_t from, const nest::long_t to )
+mynest::aeif_psc_alpha::update( const Time& origin, const nest::long_t from, const nest::long_t to )
 {
   assert( to >= 0 && ( delay ) from < Scheduler::get_min_delay() );
   assert( from < to );
   assert( State_::V_M == 0 );
-
-  double t, t_old, t_next_event;
-
+  
   for ( long_t lag = from; lag < to; ++lag )
   {
-    t = 0.;
+    double t = 0.;
 
     if ( S_.r_ > 0 )
       --S_.r_;
@@ -427,52 +378,42 @@ mynest::gp_aeif_cond_exp::update( const Time& origin, const nest::long_t from, c
 
     while ( t < B_.step_ )
     {
-      // store the previous values of V_m, w, and t
-      std::copy(S_.y_, S_.y_ + sizeof(S_.y_)/sizeof(S_.y_[0]), S_.y_old_);
-      t_old = t;
+      // propagate the ODE
+      const int status = gsl_odeiv_evolve_apply( B_.e_,
+      B_.c_,
+      B_.s_,
+      &B_.sys_,         // system of ODE
+      &t,             // from t
+      B_.step_,         // to t <= step
+      &B_.IntegrationStep_, // integration step size
+      S_.y_ );          // neuronal state
 
-      // check for end of refractory period
-      if ( P_.t_ref_ > 0. && S_.r_ == 0 && t < S_.r_offset_ )
-        t_next_event = S_.r_offset_;
-      else
-        t_next_event = B_.step_;
+      if ( status != GSL_SUCCESS )
+        throw GSLSolverFailure( get_name(), status );
 
-      while (t < t_next_event)
-      {
-        const int status = gsl_odeiv_evolve_apply( B_.e_,
-          B_.c_,
-          B_.s_,
-          &B_.sys_,             // system of ODE
-          &t,                   // from t
-          t_next_event,         // to t <= t_next_event
-          &B_.IntegrationStep_, // integration step size
-          S_.y_ );              // neuronal state
+      // check for unreasonable values; we allow V_M to explode
+      if ( S_.y_[ State_::V_M ] < -1e3 || S_.y_[ State_::W ] < -1e6 || S_.y_[ State_::W ] > 1e6 )
+        throw NumericalInstability( get_name() );
 
-        // checks
-        if ( status != GSL_SUCCESS )
-          throw GSLSolverFailure( get_name(), status );
-        if ( S_.y_[ State_::V_M ] < -1e3 || S_.y_[ State_::W ] < -1e6 || S_.y_[ State_::W ] > 1e6 )
-          throw NumericalInstability( get_name() );
-      }
-
-      // check refractoriness
-      if ( S_.r_ > 0 || S_.r_offset_ > 0. )
+      // spikes are handled inside the while-loop
+      // due to spike-driven adaptation
+      if ( S_.r_ > 0 )
         S_.y_[ State_::V_M ] = P_.V_reset_; // only V_m is frozen
       else if ( S_.y_[ State_::V_M ] >= P_.V_peak_ )
       {
-        interpolate_( t, t_old);
-        spiking_( lag, t );
+        S_.y_[ State_::V_M ] = P_.V_reset_;
+        S_.y_[ State_::W ] += P_.b;
+        S_.r_ = V_.RefractoryCounts_;
+        
+        set_spiketime( Time::step( origin.get_steps() + lag + 1 ) );
+        SpikeEvent se;
+        network()->send( *this, se, lag );
       }
-
-      /* reset refractory offset once refractory period is elapsed;
-       * this cannot be done beforehand because of the previous check */
-      if ( S_.r_ == 0 && std::abs(t - S_.r_offset_ ) < std::numeric_limits< double >::epsilon() )
-        S_.r_offset_ = 0.;
     }
 
     // influence of received spikes on post-synaptic conductances
-    S_.y_[ State_::G_EXC ] += B_.spike_exc_.get_value( lag );
-    S_.y_[ State_::G_INH ] += B_.spike_inh_.get_value( lag );
+    S_.y_[ State_::DI_EXC ] += B_.spike_exc_.get_value( lag ) * V_.I0_ex_;
+    S_.y_[ State_::DI_INH ] -= B_.spike_inh_.get_value( lag ) * V_.I0_in_;
 
     // set new input current
     B_.I_stim_ = B_.currents_.get_value( lag );
@@ -483,7 +424,7 @@ mynest::gp_aeif_cond_exp::update( const Time& origin, const nest::long_t from, c
 }
 
 void
-mynest::gp_aeif_cond_exp::handle( SpikeEvent& e )
+mynest::aeif_psc_alpha::handle( SpikeEvent& e )
 {
   assert( e.get_delay() > 0 );
 
@@ -496,7 +437,7 @@ mynest::gp_aeif_cond_exp::handle( SpikeEvent& e )
 }
 
 void
-mynest::gp_aeif_cond_exp::handle( CurrentEvent& e )
+mynest::aeif_psc_alpha::handle( CurrentEvent& e )
 {
   assert( e.get_delay() > 0 );
 
@@ -510,7 +451,7 @@ mynest::gp_aeif_cond_exp::handle( CurrentEvent& e )
 // Do not move this function as inline to h-file. It depends on
 // universal_data_logger_impl.h being included here.
 void
-mynest::gp_aeif_cond_exp::handle( DataLoggingRequest& e )
+mynest::aeif_psc_alpha::handle( DataLoggingRequest& e )
 {
   B_.logger_.handle( e );
 }
