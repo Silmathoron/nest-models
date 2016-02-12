@@ -37,14 +37,19 @@
 
 // include headers with your own stuff
 #include "nngt_module.h"
-#include "gp_aeif/gp_aeif_cond_alpha.h"
-#include "gp_aeif/gp_aeif_cond_exp.h"
 #include "aeif/aeif_cond_alpha_mod.h"
 #include "aeif/aeif_psc_alpha.h"
-#include "ps_iaf/ps_iaf_cond_alpha.h"
-#include "ps_iaf/ps_iaf_psc_alpha.h"
+#include "aeif/aeif_psc_exp.h"
+#include "gp_aeif/gp_aeif_cond_alpha.h"
+#include "gp_aeif/gp_aeif_cond_exp.h"
+#include "gp_aeif/gp_aeif_psc_alpha.h"
+#include "gp_aeif/gp_aeif_psc_exp.h"
 #include "ps_aeif/ps_aeif_cond_alpha.h"
 #include "ps_aeif/ps_aeif_cond_exp.h"
+#include "ps_aeif/ps_aeif_psc_alpha.h"
+#include "ps_aeif/ps_aeif_psc_exp.h"
+#include "ps_iaf/ps_iaf_cond_alpha.h"
+#include "ps_iaf/ps_iaf_psc_alpha.h"
 
 // -- Interface to dynamic module loader ---------------------------------------
 
@@ -98,13 +103,18 @@ mynest::NngtModule::init( SLIInterpreter* i )
    Give node type as template argument and the name as second argument.
    The first argument is always a reference to the network.
   */
-  nest::register_model< gp_aeif_cond_alpha >( nest::NestModule::get_network(), "gp_aeif_cond_alpha" );
-  nest::register_model< gp_aeif_cond_exp >( nest::NestModule::get_network(), "gp_aeif_cond_exp" );
   nest::register_model< aeif_cond_alpha_mod >( nest::NestModule::get_network(), "aeif_cond_alpha_mod" );
   nest::register_model< aeif_psc_alpha >( nest::NestModule::get_network(), "aeif_psc_alpha" );
-  nest::register_model< ps_iaf_cond_alpha >( nest::NestModule::get_network(), "ps_iaf_cond_alpha" );
-  nest::register_model< ps_iaf_psc_alpha >( nest::NestModule::get_network(), "ps_iaf_psc_alpha" );
+  nest::register_model< aeif_psc_exp >( nest::NestModule::get_network(), "aeif_psc_exp" );
+  nest::register_model< gp_aeif_cond_alpha >( nest::NestModule::get_network(), "gp_aeif_cond_alpha" );
+  nest::register_model< gp_aeif_cond_exp >( nest::NestModule::get_network(), "gp_aeif_cond_exp" );
+  nest::register_model< gp_aeif_psc_alpha >( nest::NestModule::get_network(), "gp_aeif_psc_alpha" );
+  nest::register_model< gp_aeif_psc_exp >( nest::NestModule::get_network(), "gp_aeif_psc_exp" );
   nest::register_model< ps_aeif_cond_alpha >( nest::NestModule::get_network(), "ps_aeif_cond_alpha" );
   nest::register_model< ps_aeif_cond_exp >( nest::NestModule::get_network(), "ps_aeif_cond_exp" );
+  nest::register_model< ps_aeif_psc_alpha >( nest::NestModule::get_network(), "ps_aeif_psc_alpha" );
+  nest::register_model< ps_aeif_psc_exp >( nest::NestModule::get_network(), "ps_aeif_psc_exp" );
+  nest::register_model< ps_iaf_cond_alpha >( nest::NestModule::get_network(), "ps_iaf_cond_alpha" );
+  nest::register_model< ps_iaf_psc_alpha >( nest::NestModule::get_network(), "ps_iaf_psc_alpha" );
 
 } // NngtModule::init()

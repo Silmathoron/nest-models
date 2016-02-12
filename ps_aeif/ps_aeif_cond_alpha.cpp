@@ -418,7 +418,7 @@ mynest::ps_aeif_cond_alpha::update( const Time& origin, const nest::long_t from,
   assert( from < to );
   assert( State_::V_M == 0 );
 
-  double t, t_old, t_next_event, spike_in, spike_ex;
+  double t, t_old, t_next_event, spike_in(0.), spike_ex(0.);
 
   // at start of slice, tell input queue to prepare for delivery
   if ( from == 0 )
@@ -496,9 +496,14 @@ mynest::ps_aeif_cond_alpha::update( const Time& origin, const nest::long_t from,
       // reset refractory offset once refractory period is elapsed
       if ( S_.r_ == 0 && std::abs(t - S_.r_offset_ ) < B_.uncertainty )
         S_.r_offset_ = 0.;
-
-      S_.y_[ State_::DG_EXC ] += spike_ex * V_.g0_ex_;
-      S_.y_[ State_::DG_INH ] += spike_in * V_.g0_in_;
+      
+      if (t == t_next_event)
+      {
+        S_.y_[ State_::DG_EXC ] += spike_ex * V_.g0_ex_;
+        S_.y_[ State_::DG_INH ] += spike_in * V_.g0_in_;
+        spike_ex = 0.;
+        spike_in = 0.;
+      }
     }
 
     // set new input current

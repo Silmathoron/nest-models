@@ -425,7 +425,7 @@ mynest::ps_aeif_cond_exp::update( const Time& origin, const nest::long_t from, c
   }
   
   // resume usual procedure (like in non-precise models
-  double t, t_old, t_next_event, spike_in, spike_ex;
+  double t, t_old, t_next_event, spike_in(0.), spike_ex(0.);
 
   for ( long_t lag = from; lag < to; ++lag )
   {
@@ -486,8 +486,13 @@ mynest::ps_aeif_cond_exp::update( const Time& origin, const nest::long_t from, c
       if ( S_.r_ == 0 && std::abs(t - S_.r_offset_ ) < std::numeric_limits< double >::epsilon() )
         S_.r_offset_ = 0.;
 
-      S_.y_[ State_::G_EXC ] += spike_ex;
-      S_.y_[ State_::G_INH ] += spike_in;
+      if (t == t_next_event)
+      {
+        S_.y_[ State_::G_EXC ] += spike_ex;
+        S_.y_[ State_::G_INH ] += spike_in;
+        spike_ex = 0.;
+        spike_in = 0.;
+      }
     }
 
     // set new input current

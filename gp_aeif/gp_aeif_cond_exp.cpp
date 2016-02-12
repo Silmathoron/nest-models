@@ -439,6 +439,7 @@ mynest::gp_aeif_cond_exp::update( const Time& origin, const nest::long_t from, c
 
       while (t < t_next_event)
       {
+        // propagate the ODE
         const int status = gsl_odeiv_evolve_apply( B_.e_,
           B_.c_,
           B_.s_,

@@ -46,7 +46,8 @@ args.no_network = True
 #
 
 #~ models = [ "aeif_cond_exp", "aeif_cond_alpha_mod", "gp_aeif_cond_exp", "ps_aeif_cond_exp" ]
-models = [ "aeif_cond_alpha_RK5", "gp_aeif_cond_exp", "ps_aeif_cond_exp" ]
+models = [ "gp_aeif_psc_exp", "ps_aeif_psc_exp" ]
+#~ models = [ "gp_aeif_cond_exp", "ps_aeif_cond_exp" ]
 num_neurons = len(models)
 
 tpl_ignore = ( "V_m", "w", "vp", "global_id", "thread_local_id", "thread", "model", "local_id", "t_spike" )
@@ -58,11 +59,11 @@ tpl_ignore = ( "V_m", "w", "vp", "global_id", "thread_local_id", "thread", "mode
 #
 
 nest.ResetKernel()
-nest.SetKernelStatus({"local_num_threads": 6, "overwrite_files":True})
+nest.SetKernelStatus({"local_num_threads": 1, "overwrite_files":True})
 if args.indivdual:
     r_resolution = 0.01
     nest.SetKernelStatus({"resolution":r_resolution})
-    d_step_current = 160.
+    d_step_current = 100.
     r_min_voltage = -70.
 
     # compare the precise implementation and the others
@@ -87,18 +88,23 @@ if args.indivdual:
     # models
     lst_neurons = [ nest.Create(model,params=di_param) for model in models ]
 
+    poisson = nest.Create("poisson_generator",1,{"rate":10000.})
+    parrot = nest.Create("parrot_neuron")
+    nest.Connect(poisson,parrot)
     step_gen = nest.Create("step_current_generator",1,{"amplitude_times": [50.,1500.], "amplitude_values":[d_step_current,0.]})
     multimeter = nest.Create("multimeter",num_neurons)
-    nest.SetStatus(multimeter, {"withtime":True, "interval":r_resolution, "record_from":["V_m","w"], "to_file":True})
+    nest.SetStatus(multimeter, {"withtime":True, "interval":r_resolution, "record_from":["V_m","w", "I_ex"], "to_file":True})
 
     for i,neuron in enumerate(lst_neurons):
+        print(nest.GetStatus(neuron)[0]["t_ref"])
         nest.Connect(step_gen,neuron)
         nest.Connect(multimeter[i],neuron[0])
+        nest.Connect(parrot,neuron, syn_spec={'weight':80.})
 
     nest.Simulate(1600.0)
 
     # plot
-    fig, (ax1, ax2) = plt.subplots(2,1,sharex=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(3,1,sharex=True)
     # get the neuron's membrane potential
     for i in range(num_neurons):
         dmm = nest.GetStatus(multimeter)[i]
@@ -108,12 +114,15 @@ if args.indivdual:
           for j in range(num_neurons-1):
             voltage_precise[j] -= da_voltage
         da_adapt = dmm["events"]["w"]
+        da_syn = dmm["events"]["I_ex"]
         da_time = dmm["events"]["times"]
         ax1.plot(da_time,da_voltage,c=cm.hot(0.8*i/float(num_neurons)), label=models[i])
         ax1.set_ylabel('Voltage (mV)')
         ax2.plot(da_time,da_adapt,c=cm.hot(0.8*i/float(num_neurons)), label=models[i])
-        ax2.set_xlabel('Time (ms)')
         ax2.set_ylabel('Current (pA)')
+        ax3.plot(da_time,da_syn,c=cm.hot(0.8*i/float(num_neurons)), label=models[i])
+        ax3.set_xlabel('Time (ms)')
+        ax3.set_ylabel('Conductance (nS)')
 
     plt.legend(loc=4)
 

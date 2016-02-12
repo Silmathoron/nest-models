@@ -163,8 +163,8 @@ SliceRingBuffer::get_next_event( const nest::long_t req_stamp,
   const nest::double_t step_ )
 {
   // accumulate weights of all spikes with same stamp AND offset
-  weight_in = 0.; // accumulate absolute weights of inhibitory
-  weight_ex = 0.; // accumulate weights of excitatory
+  //~ weight_in = 0.; // accumulate absolute weights of inhibitory
+  //~ weight_ex = 0.; // accumulate weights of excitatory
 
   if ( deliver_->empty() )
   {

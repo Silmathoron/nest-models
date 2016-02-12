@@ -146,7 +146,7 @@ class gp_aeif_cond_alpha : public nest::Archiving_Node
 
       //! Take neuron through given time interval
       void interpolate_( double&, double );
-      
+
       //! Send spike and set refractoriness
       void spiking_( const nest::long_t, const double );
 
@@ -287,7 +287,6 @@ class gp_aeif_cond_alpha : public nest::Archiving_Node
          // it is safe to place both here.
          nest::double_t step_;          //!< step size in ms
          double IntegrationStep_; //!< current integration time step, updated by GSL
-         double uncertainty; //!< acceptable error on event timing
 
          /**
          * Input current injected by CurrentEvent.
