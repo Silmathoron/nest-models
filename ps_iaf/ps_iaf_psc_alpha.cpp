@@ -311,8 +311,8 @@ mynest::ps_iaf_psc_alpha::calibrate()
 {
   B_.logger_.init(); // ensures initialization in case mm connected after Simulate
 
-  V_.i0_ex_ = 1.0 * numerics::e / P_.tau_syn_exc;
-  V_.i0_in_ = 1.0 * numerics::e / P_.tau_syn_inh;
+  V_.I0_ex_ = 1.0 * numerics::e / P_.tau_syn_exc;
+  V_.I0_in_ = 1.0 * numerics::e / P_.tau_syn_inh;
   V_.RefractoryCounts_ = Time( Time::ms( P_.t_ref_ ) ).get_steps() + 1;
   V_.RefractoryOffset_ = P_.t_ref_ - ( V_.RefractoryCounts_ - 1 ) * Time::get_resolution().get_ms();
   assert( V_.RefractoryCounts_ >= 0 ); // since t_ref_ >= 0, this can only fail in error
@@ -374,7 +374,7 @@ mynest::ps_iaf_psc_alpha::update( const Time& origin, const long_t from, const l
   assert( from < to );
   assert( State_::V_M == 0 );
 
-  double t, t_old, t_next_event, spike_in, spike_ex;
+  double t, t_old, t_next_event, spike_in(0.), spike_ex(0.);
 
   // at start of slice, tell input queue to prepare for delivery
   if ( from == 0 )
@@ -453,8 +453,13 @@ mynest::ps_iaf_psc_alpha::update( const Time& origin, const long_t from, const l
       if ( S_.r_ == 0 && std::abs(t - S_.r_offset_) < std::numeric_limits< double >::epsilon() )
         S_.r_offset_ = 0.;
 
-      S_.y_[ State_::DI_EXC ] += spike_ex * V_.i0_ex_;
-      S_.y_[ State_::DI_INH ] += spike_in * V_.i0_in_;
+      if (t == t_next_event)
+      {
+        S_.y_[ State_::DI_EXC ] += spike_ex * V_.I0_ex_;
+        S_.y_[ State_::DI_INH ] += spike_in * V_.I0_in_;
+        spike_ex = 0.;
+        spike_in = 0.;
+      }
     }
 
     // set new input current

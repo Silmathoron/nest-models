@@ -1,12 +1,12 @@
 /*
- *  ps_iaf_psc_alpha.h
+ *  aeif_psc_exp.h
  *
  *  Changes Parameters_, changing State_;
  *
  */
 
-#ifndef PS_IAF_PSC_ALPHA_H
-#define PS_IAF_PSC_ALPHA_H
+#ifndef AEIF_PSC_EXP_H
+#define AEIF_PSC_EXP_H
 
 #include "config.h" // necessary for HAVE_GSL_1_11
 
@@ -15,7 +15,6 @@
 #include "nest.h"
 #include "event.h"
 #include "archiving_node.h"
-#include "../slice_buffer/slice_ring_buffer.h"
 #include "ring_buffer.h"
 #include "connection.h"
 #include "universal_data_logger.h"
@@ -30,66 +29,83 @@ namespace mynest
 {
 
 /* BeginDocumentation
-Name: ps_iaf_psc_alpha - Perfect integrate-and-fire neuron model with alpha conductance synapse.
+Name: aeif_psc_exp - Current-based exponential integrate-and-fire
+  neuron model according to Brette and Gerstner (2005), modified to show
+  the new proposed generic model implementation.
 
 Description:
-ps_iaf_psc_alpha implements a non-leaky integrate-and-fire neuron with
-with alpha-function shaped synaptic conductance. The threshold crossing is
-followed by an absolute refractory period during which the membrane potential
-is clamped to the resting potential, while synaptic currents evolve normally.
+aeif_cond_alpha is the adaptive exponential integrate and fire neuron according
+to Brette and Gerstner (2005) and synaptic currents are modelled as exponential
+functions.
+* 
+This implementation uses the embedded 4th order Runge-Kutta-Fehlberg solver
+with adaptive stepsize to integrate the differential equation.
+* 
+The membrane potential is given by the following differential equation:
+* 
+C dV/dt = -g_L*(V-E_L) + g_L*Delta_T*exp((V-V_T)/Delta_T) + I_ex(t) - I_in(t)
+          - w + I_e
 
-The dynamics of the neuron are defined by
+and
 
-   C_m dV/dt  = I_e - g_syn_exc(t) x (V-E_exc) - g_syn_inh(t) x (V-E_inh)
-
-   g_syn_exc(t)   = Sum_{t_{j,k,exc} < t} w_j x (t-t_{j,k}) x e/tau_syn_excc x e^{-(t-t_{j,k})/tau_syn_excc}
-   g_syn_inh(t)   = Sum_{t_{j,k,inh} < t} w_j x (t-t_{j,k}) x e/tau_syn_inhh x e^{-(t-t_{j,k})/tau_syn_inhh}
-
-where t_{j,k,exc} is the time of the k-th excitatory spike arriving from neuron
-j, and w_j is the weight of the synapse from neuron j onto the present neuron.
-The alpha function is normalized by amplitude, i.e., the maximum input
-conductance for any spike is w_j.
+tau_w * dw/dt = a*(V-E_L) - W
 
 Parameters:
-C_m      double - Membrane capacitance, in pF
-I_e      double - Intrinsic DC current, in nA
-tau_syn  double - Synaptic time constant, in ms
-t_ref    double - Duration of refractory period in ms.
-V_th     double - Spike threshold in mV.
-V_reset  double - Reset potential of the membrane in mV.
-interpol int    - Order of the interpolation (find the precise time when the
-                  threshold is crossed)
+The following parameters can be set in the status dictionary.
 
-Remarks:
-The linear subthresold dynamics is integrated using the Gnu Scientific Library.
-The neuron dynamics is solved between steps on the grid given by the
-computation step size. However, incoming as well as emitted spikes are not
-forced to that grid but their precise timing is computed and contained in the
-SpikeEvents.
+Dynamic state variables:
+  V_m        double - Membrane potential in mV
+  I_ex       double - Excitatory synaptic current in pA.
+  I_in       double - Inhibitory synaptic current in pA.
+  w          double - Spike-adaptation current in pA.
+
+Membrane Parameters:
+
+  C_m        double - Capacity of the membrane in pF
+  t_ref      double - Duration of refractory period in ms.
+  V_reset    double - Reset value for V_m after a spike. In mV.
+  E_L        double - Leak reversal potential in mV.
+  g_L        double - Leak conductance in nS.
+  I_e        double - Constant external input current in pA.
+
+Spike adaptation parameters:
+  a          double - Subthreshold adaptation in nS.
+  b          double - Spike-triggered adaptation in pA.
+  Delta_T    double - Slope factor in mV
+  tau_w      double - Adaptation time constant in ms
+  V_th       double - Spike initiation threshold in mV
+  V_peak     double - Spike detection threshold in mV.
+
+Synaptic parameters
+  tau_syn_ex double - Characteristic decrease time of excitatory synaptic current in ms (exponential function).
+  tau_syn_in double - Characteristic decrease time of the inhibitory synaptic current in ms (exponential function).
+
+Integration parameters
+  gsl_error_tol  double - This parameter controls the admissible error of the GSL integrator.
+                          Reduce it if NEST complains about numerical instabilities.
+
+Author: Tanguy Fardet, modified from Marc-Oliver Gewaltig's implementation
 
 Sends: SpikeEvent
 
 Receives: SpikeEvent, CurrentEvent, DataLoggingRequest
 
-Author:
-Hans Ekkehard Plesser, based on iaf_psc_alpha
+References: Brette R and Gerstner W (2005) Adaptive Exponential Integrate-and-
+  Fire Model as an Effective Description of Neuronal Activity.
+  J Neurophysiol 94:3637-3642
 
-SeeAlso: iaf_psc_delta, iaf_psc_exp, iaf_psc_alpha
+SeeAlso: iaf_cond_alpha, aeif_cond_exp, aeif_cond_alpha
 */
 
-/**
- * Non-leaky integrate-and-fire neuron with alpha-shaped PSCs.
- */
+extern "C" int aeif_psc_exp_dynamics( double, const double*, double*, void* );
 
-extern "C" int ps_iaf_psc_alpha_dynamics( double, const double*, double*, void* );
-
-class ps_iaf_psc_alpha : public nest::Archiving_Node
+class aeif_psc_exp : public nest::Archiving_Node
 {
    public:
       /**
       * The constructor is only used to create the model prototype in the model manager.
       */
-      ps_iaf_psc_alpha();
+      aeif_psc_exp();
 
       /**
       * The copy constructor is used to create model copies and instances of the model.
@@ -97,7 +113,7 @@ class ps_iaf_psc_alpha : public nest::Archiving_Node
       *       Initialization of buffers and interal variables is deferred to
       *       @c init_buffers_() and @c calibrate().
       */
-      ps_iaf_psc_alpha( const ps_iaf_psc_alpha& );
+      aeif_psc_exp( const aeif_psc_exp& );
 
       /**
       * Import sets of overloaded virtual functions.
@@ -121,12 +137,6 @@ class ps_iaf_psc_alpha : public nest::Archiving_Node
       void handle( nest::SpikeEvent& );         //! accept spikes
       void handle( nest::CurrentEvent& );       //! accept input current
       void handle( nest::DataLoggingRequest& ); //! allow recording with multimeter
-      
-      bool
-      is_off_grid() const
-      {
-        return true;
-      } // uses off_grid events
 
       nest::port handles_test_event( nest::SpikeEvent&, nest::port );
       nest::port handles_test_event( nest::CurrentEvent&, nest::port );
@@ -151,15 +161,9 @@ class ps_iaf_psc_alpha : public nest::Archiving_Node
       //! Take neuron through given time interval
       void update( const nest::Time&, const nest::long_t, const nest::long_t );
 
-      //! Find the precise time of network crossing
-      void interpolate_( double&, double );
-      
-      //! Send spike and set refractoriness
-      void spiking_( const nest::long_t, const nest::long_t, const double );
-
       // The next two classes need to be friends to access the State_ class/member
-      friend class nest::RecordablesMap< ps_iaf_psc_alpha >;
-      friend class nest::UniversalDataLogger< ps_iaf_psc_alpha >;
+      friend class nest::RecordablesMap< aeif_psc_exp >;
+      friend class nest::UniversalDataLogger< aeif_psc_exp >;
 
       /**
       * Free parameters of the neuron.
@@ -181,20 +185,22 @@ class ps_iaf_psc_alpha : public nest::Archiving_Node
       */
       struct Parameters_
       {
+         nest::double_t V_peak_;  //!< Spike detection threshold in mV
          nest::double_t V_reset_; //!< Reset Potential in mV
          nest::double_t t_ref_;   //!< Refractory period in ms
 
          nest::double_t g_L;        //!< Leak Conductance in nS
          nest::double_t C_m;        //!< Membrane Capacitance in pF
-         nest::double_t E_ex;       //!< Excitatory reversal Potential in mV
-         nest::double_t E_in;       //!< Inhibitory reversal Potential in mV
          nest::double_t E_L;        //!< Leak reversal Potential (aka resting potential) in mV
+         nest::double_t Delta_T;    //!< Slope faktor in ms.
+         nest::double_t tau_w;      //!< adaptation time-constant in ms.
+         nest::double_t a;          //!< Subthreshold adaptation in nS.
+         nest::double_t b;          //!< Spike-triggered adaptation in pA
          nest::double_t V_th;       //!< Spike threshold in mV.
          nest::double_t t_ref;      //!< Refractory period in ms.
-         nest::double_t tau_syn_exc; //!< Excitatory synaptic rise time.
-         nest::double_t tau_syn_inh; //!< Excitatory synaptic rise time.
+         nest::double_t tau_syn_ex; //!< Excitatory synaptic rise time.
+         nest::double_t tau_syn_in; //!< Excitatory synaptic rise time.
          nest::double_t I_e;        //!< Intrinsic current in pA.
-         int interpol_order;        //!< Interpolation order (from 1 to 3)
 
          nest::double_t gsl_error_tol; //!< error bound for GSL integrator
 
@@ -234,17 +240,14 @@ class ps_iaf_psc_alpha : public nest::Archiving_Node
          enum StateVecElems
          {
             V_M = 0,
-            DI_EXC, // 1
-            I_EXC,  // 2
-            DI_INH, // 3
-            I_INH,  // 4
+            I_EXC,  // 1
+            I_INH,  // 2
+            W,      // 3
             STATE_VEC_SIZE
          };
 
          nest::double_t y_[ STATE_VEC_SIZE ]; //!< neuron state, must be C-array for GSL solver
-         nest::double_t y_old_[ STATE_VEC_SIZE ]; //!< old neuron state, must be C-array for GSL solver
          nest::int_t r_;                      //!< number of refractory steps remaining
-         nest::double_t r_offset_;      // offset on the refractory time if it is not a multiple of step_
 
          State_( const Parameters_& ); //!< Default initialization
          State_( const State_& );
@@ -266,14 +269,15 @@ class ps_iaf_psc_alpha : public nest::Archiving_Node
       */
       struct Buffers_
       {
-         Buffers_( ps_iaf_psc_alpha& );                  //!<Sets buffer pointers to 0
-         Buffers_( const Buffers_&, ps_iaf_psc_alpha& ); //!<Sets buffer pointers to 0
+         Buffers_( aeif_psc_exp& );                  //!<Sets buffer pointers to 0
+         Buffers_( const Buffers_&, aeif_psc_exp& ); //!<Sets buffer pointers to 0
 
          //! Logger for all analog data
-         nest::UniversalDataLogger< ps_iaf_psc_alpha > logger_;
+         nest::UniversalDataLogger< aeif_psc_exp > logger_;
 
          /** buffers and sums up incoming spikes/currents */
-         SliceRingBuffer events_;
+         nest::RingBuffer spike_exc_;
+         nest::RingBuffer spike_inh_;
          nest::RingBuffer currents_;
 
          /** GSL ODE stuff */
@@ -288,7 +292,6 @@ class ps_iaf_psc_alpha : public nest::Archiving_Node
          // it is safe to place both here.
          nest::double_t step_;          //!< step size in ms
          double IntegrationStep_; //!< current integration time step, updated by GSL
-         double uncertainty; //!< acceptable error on event timing
 
          /**
          * Input current injected by CurrentEvent.
@@ -310,14 +313,13 @@ class ps_iaf_psc_alpha : public nest::Archiving_Node
       */
       struct Variables_
       {
-        /** initial value to normalise excitatory psc */
-        nest::double_t I0_ex_; //!< e / tau_syn_exc
+         /** initial value to normalise excitatory synaptic conductance */
+         nest::double_t I0_ex_;
 
-        /** initial value to normalise inhibitory psc */
-        nest::double_t I0_in_; //!< e / tau_syn_inh
+         /** initial value to normalise inhibitory synaptic conductance */
+         nest::double_t I0_in_;
 
-        nest::int_t RefractoryCounts_;
-        nest::double_t RefractoryOffset_;
+         nest::int_t RefractoryCounts_;
       };
 
       /**
@@ -330,13 +332,6 @@ class ps_iaf_psc_alpha : public nest::Archiving_Node
       get_y_elem_() const
       {
          return S_.y_[ elem ];
-      }
-      //! Read out the old state
-      template < State_::StateVecElems elem >
-      nest::double_t
-      get_y_old_elem_() const
-      {
-         return S_.y_old_[ elem ];
       }
       /** @} */
 
@@ -356,13 +351,13 @@ class ps_iaf_psc_alpha : public nest::Archiving_Node
       Buffers_ B_;    //!< Buffers.
 
       //! Mapping of recordables names to access functions
-      static nest::RecordablesMap< ps_iaf_psc_alpha > recordablesMap_;
+      static nest::RecordablesMap< aeif_psc_exp > recordablesMap_;
 
       /** @} */
 };
 
 inline nest::port
-mynest::ps_iaf_psc_alpha::send_test_event( nest::Node& target,
+mynest::aeif_psc_exp::send_test_event( nest::Node& target,
   nest::port receptor_type,
   nest::synindex,
   bool )
@@ -376,7 +371,7 @@ mynest::ps_iaf_psc_alpha::send_test_event( nest::Node& target,
 }
 
 inline nest::port
-mynest::ps_iaf_psc_alpha::handles_test_event( nest::SpikeEvent&, nest::port receptor_type )
+mynest::aeif_psc_exp::handles_test_event( nest::SpikeEvent&, nest::port receptor_type )
 {
   // You should usually not change the code in this function.
   // It confirms to the connection management system that we are able
@@ -388,7 +383,7 @@ mynest::ps_iaf_psc_alpha::handles_test_event( nest::SpikeEvent&, nest::port rece
 }
 
 inline nest::port
-mynest::ps_iaf_psc_alpha::handles_test_event( nest::CurrentEvent&, nest::port receptor_type )
+mynest::aeif_psc_exp::handles_test_event( nest::CurrentEvent&, nest::port receptor_type )
 {
   // You should usually not change the code in this function.
   // It confirms to the connection management system that we are able
@@ -400,7 +395,7 @@ mynest::ps_iaf_psc_alpha::handles_test_event( nest::CurrentEvent&, nest::port re
 }
 
 inline nest::port
-mynest::ps_iaf_psc_alpha::handles_test_event( nest::DataLoggingRequest& dlr, nest::port receptor_type )
+mynest::aeif_psc_exp::handles_test_event( nest::DataLoggingRequest& dlr, nest::port receptor_type )
 {
   // You should usually not change the code in this function.
   // It confirms to the connection management system that we are able
@@ -414,7 +409,7 @@ mynest::ps_iaf_psc_alpha::handles_test_event( nest::DataLoggingRequest& dlr, nes
 }
 
 inline void
-ps_iaf_psc_alpha::get_status( DictionaryDatum& d ) const
+aeif_psc_exp::get_status( DictionaryDatum& d ) const
 {
   // get our own parameter and state data
   P_.get( d );
@@ -427,7 +422,7 @@ ps_iaf_psc_alpha::get_status( DictionaryDatum& d ) const
 }
 
 inline void
-ps_iaf_psc_alpha::set_status( const DictionaryDatum& d )
+aeif_psc_exp::set_status( const DictionaryDatum& d )
 {
   Parameters_ ptmp = P_; // temporary copy in case of errors
   ptmp.set( d );         // throws if BadProperty
@@ -448,4 +443,4 @@ ps_iaf_psc_alpha::set_status( const DictionaryDatum& d )
 } // namespace
 
 #endif /* #ifdef HAVE_GSL_1_11 */
-#endif /* #ifndef PS_IAF_PSC_ALPHA_H */
+#endif /* #ifndef AEIF_PSC_EXP_H */
