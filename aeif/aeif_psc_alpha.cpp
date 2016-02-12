@@ -93,10 +93,10 @@ mynest::aeif_psc_alpha_dynamics( double, const double y[], double f[], void* pno
             + node.P_.I_e + node.B_.I_stim_ ) / node.P_.C_m;
 
   f[ S::DI_EXC ] = -dI_ex / node.P_.tau_syn_ex;
-  f[ S::I_EXC ] = dI_ex - I_ex / node.P_.tau_syn_ex; // Synaptic Conductance (nS)
+  f[ S::I_EXC ] = dI_ex - I_ex / node.P_.tau_syn_ex; // Synaptic current (pA)
 
   f[ S::DI_INH ] = -dI_in / node.P_.tau_syn_in;
-  f[ S::I_INH ] = dI_in - I_in / node.P_.tau_syn_in; // Synaptic Conductance (nS)
+  f[ S::I_INH ] = dI_in - I_in / node.P_.tau_syn_in; // Synaptic current (pA)
 
   // Adaptation current w.
   f[ S::W ] = ( node.P_.a * ( V - node.P_.E_L ) - w ) / node.P_.tau_w;
@@ -115,8 +115,6 @@ mynest::aeif_psc_alpha::Parameters_::Parameters_()
   , t_ref_( 0.0 )    // ms
   , g_L( 30.0 )     // nS
   , C_m( 281.0 )    // pF
-  , E_ex( 0.0 )     // mV
-  , E_in( -85.0 )    // mV
   , E_L( -70.6 )    // mV
   , Delta_T( 2.0 )   // mV
   , tau_w( 144.0 )   // ms
@@ -169,8 +167,6 @@ mynest::aeif_psc_alpha::Parameters_::get( DictionaryDatum& d ) const
   def< double >( d, names::g_L, g_L );
   def< double >( d, names::E_L, E_L );
   def< double >( d, names::V_reset, V_reset_ );
-  def< double >( d, names::E_ex, E_ex );
-  def< double >( d, names::E_in, E_in );
   def< double >( d, names::tau_syn_ex, tau_syn_ex );
   def< double >( d, names::tau_syn_in, tau_syn_in );
   def< double >( d, names::a, a );
@@ -190,8 +186,6 @@ mynest::aeif_psc_alpha::Parameters_::set( const DictionaryDatum& d )
   updateValue< double >( d, names::t_ref, t_ref_ );
   updateValue< double >( d, names::E_L, E_L );
   updateValue< double >( d, names::V_reset, V_reset_ );
-  updateValue< double >( d, names::E_ex, E_ex );
-  updateValue< double >( d, names::E_in, E_in );
 
   updateValue< double >( d, names::C_m, C_m );
   updateValue< double >( d, names::g_L, g_L );
@@ -243,6 +237,9 @@ mynest::aeif_psc_alpha::State_::set( const DictionaryDatum& d, const Parameters_
   updateValue< double >( d, names::I_ex, y_[ I_EXC ] );
   updateValue< double >( d, names::I_in, y_[ I_INH ] );
   updateValue< double >( d, names::w, y_[ W ] );
+  
+  if ( y_[ I_EXC ] < 0 || y_[ I_INH ] < 0 )
+   throw BadProperty( "Currents are positive by definition." );
 }
 
 mynest::aeif_psc_alpha::Buffers_::Buffers_( aeif_psc_alpha& n )

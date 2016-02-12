@@ -29,56 +29,78 @@ namespace mynest
 {
 
 /* BeginDocumentation
-Name: gp_aeif_cond_alpha - Perfect integrate-and-fire neuron model with alpha PSC synapse.
+Name: gp_aeif_cond_alpha - Conductance based exponential integrate-and-fire
+  neuron model according to Brette and Gerstner (2005), implementing a linear
+  interpolation to find the "exact" time where the threshold was crossed, i.e.
+  the spiking time.
 
 Description:
-gp_aeif_cond_alpha implements a non-leaky integrate-and-fire neuron with
-with alpha-function shaped synaptic currents. The threshold crossing is
-followed by an absolute refractory period during which the membrane potential
-is clamped to the resting potential, while synaptic currents evolve normally.
+aeif_cond_alpha is the adaptive exponential integrate and fire neuron according
+to Brette and Gerstner (2005) and synaptic conductances are modelled as alpha
+functions. This model implements a linear interpolation to find spike times 
+more precisely.
 
-The dynamics of the neuron are defined by
+This implementation uses the embedded 4th order Runge-Kutta-Fehlberg solver
+with adaptive stepsize to integrate the differential equation.
 
-   C_m dV/dt  = I_syn(t) + I_e
+The membrane potential is given by the following differential equation:
 
-   I_syn(t)   = Sum_{t_{j,k} < t} w_j x (t-t_{j,k}) x e/tau_syn x e^{-(t-t_{j,k})/tau_syn}
+C dV/dt = -g_L*(V-E_L) + g_L*Delta_T*exp((V-V_T)/Delta_T) - g_e(t)*(V-E_e)
+          -g_i(t)*(V-E_i) - w + I_e
 
-where t_{j,k} is the time of the k-th spike arriving from neuron j, and w_j is
-the weight of the synapse from neuron j onto the present neuron. The alpha function
-is normalized by amplitude, i.e., the maximum input current for any spike is w_j.
+and
+
+tau_w * dw/dt = a*(V-E_L) - w
 
 Parameters:
-C_m      double - Membrane capacitance, in pF
-I_e      double - Intrinsic DC current, in nA
-tau_syn  double - Synaptic time constant, in ms
-t_ref    double - Duration of refractory period in ms.
-V_th     double - Spike threshold in mV.
-V_reset  double - Reset potential of the membrane in mV.
+The following parameters can be set in the status dictionary.
 
-Remarks:
-The linear subthresold dynamics is integrated by the Exact
-Integration scheme [1]. The neuron dynamics is solved on the time
-grid given by the computation step size. Incoming as well as emitted
-spikes are forced to that grid.
+Dynamic state variables:
+  V_m        double - Membrane potential in mV
+  g_ex       double - Excitatory synaptic conductance in nS.
+  dg_ex      double - First derivative of g_ex in nS/ms
+  g_in       double - Inhibitory synaptic conductance in nS.
+  dg_in      double - First derivative of g_in in nS/ms.
+  w          double - Spike-adaptation current in pA.
 
-References:
-[1] Rotter S & Diesmann M (1999) Exact simulation of time-invariant linear
-    systems with applications to neuronal modeling. Biologial Cybernetics
-    81:381-402.
+Membrane Parameters:
+  C_m        double - Capacity of the membrane in pF
+  t_ref      double - Duration of refractory period in ms.
+  V_reset    double - Reset value for V_m after a spike. In mV.
+  E_L        double - Leak reversal potential in mV.
+  g_L        double - Leak conductance in nS.
+  I_e        double - Constant external input current in pA.
+
+Spike adaptation parameters:
+  a          double - Subthreshold adaptation in nS.
+  b          double - Spike-triggered adaptation in pA.
+  Delta_T    double - Slope factor in mV
+  tau_w      double - Adaptation time constant in ms
+  V_th       double - Spike initiation threshold in mV
+  V_peak     double - Spike detection threshold in mV.
+
+Synaptic parameters
+  E_ex       double - Excitatory reversal potential in mV.
+  tau_syn_ex double - Rise time of excitatory synaptic conductance in ms (alpha function).
+  E_in       double - Inhibitory reversal potential in mV.
+  tau_syn_in double - Rise time of the inhibitory synaptic conductance in ms (alpha function).
+
+Integration parameters
+  gsl_error_tol  double - This parameter controls the admissible error of the GSL integrator.
+                          Reduce it if NEST complains about numerical instabilities.
+
+Author: Tanguy Fardet, modified from Marc-Oliver Gewaltig's implementation
 
 Sends: SpikeEvent
 
 Receives: SpikeEvent, CurrentEvent, DataLoggingRequest
 
-Author:
-Hans Ekkehard Plesser, based on iaf_psc_alpha
+References: Brette R and Gerstner W (2005) Adaptive Exponential Integrate-and-
+  Fire Model as an Effective Description of Neuronal Activity.
+  J Neurophysiol 94:3637-3642
 
-SeeAlso: iaf_psc_delta, iaf_psc_exp, iaf_psc_alpha
+SeeAlso: iaf_cond_alpha, aeif_cond_exp, aeif_cond_alpha
 */
-
-/**
- * Non-leaky integrate-and-fire neuron with alpha-shaped PSCs.
- */
 
 extern "C" int gp_aeif_cond_alpha_dynamics( double, const double*, double*, void* );
 
