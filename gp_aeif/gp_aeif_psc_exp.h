@@ -58,9 +58,7 @@ The following parameters can be set in the status dictionary.
 Dynamic state variables:
   V_m        double - Membrane potential in mV
   I_ex       double - Excitatory synaptic current in pA.
-  dI_ex      double - First derivative of I_ex in pA/ms
   I_in       double - Inhibitory synaptic current in pA.
-  dI_in      double - First derivative of I_in in pA/ms.
   w          double - Spike-adaptation current in pA.
 
 Membrane Parameters:

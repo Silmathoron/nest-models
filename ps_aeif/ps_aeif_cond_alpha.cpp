@@ -45,7 +45,9 @@ namespace nest // template specialization must be placed in namespace
   {
     insert_( names::V_m, &mynest::ps_aeif_cond_alpha::get_y_elem_< mynest::ps_aeif_cond_alpha::State_::V_M > );
     insert_( names::g_ex, &mynest::ps_aeif_cond_alpha::get_y_elem_< mynest::ps_aeif_cond_alpha::State_::G_EXC > );
+    insert_( names::dg_ex, &mynest::ps_aeif_cond_alpha::get_y_elem_< mynest::ps_aeif_cond_alpha::State_::DG_EXC > );
     insert_( names::g_in, &mynest::ps_aeif_cond_alpha::get_y_elem_< mynest::ps_aeif_cond_alpha::State_::G_INH > );
+    insert_( names::dg_in, &mynest::ps_aeif_cond_alpha::get_y_elem_< mynest::ps_aeif_cond_alpha::State_::DG_INH > );
     insert_( names::w, &mynest::ps_aeif_cond_alpha::get_y_elem_< mynest::ps_aeif_cond_alpha::State_::W > );
   }
 }
